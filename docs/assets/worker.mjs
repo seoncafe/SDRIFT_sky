@@ -1,5 +1,5 @@
 // Modified 2026-10-08. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,D,mod} from './sky-core.mjs';
+import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,D,mod} from './sky-core.mjs?v=dgl-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -12,15 +12,23 @@ async function array(meta){
 }
 self.onmessage=async({data:{request:r,manifest:m}})=>{try{
  const np=12*r.nside*r.nside,result={flux:new Float32Array(np),mag:new Float32Array(np)};
- let q,info,sun,delta;
- if(r.kind==='zodiacal'){q=await array(m.zodiacal[r.band]);sun=solarAt(Date.parse(r.utc)/1000,await array(m.solar),m.solar);delta=mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI;result.delta=delta;result.sun=sun;}
- else {info=m.airglow[r.model];q=await array(info.bands[r.band]);for(const key of ['lit','hmin'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff'])result[key]=new Uint8Array(np);}
- const {sampleMap}=await import('./sky-core.mjs');
+ let q,info,sun,delta,dgl;
+ if(r.kind!=='airglow'){
+   if(r.kind==='zodiacal'||r.kind==='zodiacal_dgl')q=await array(m.zodiacal[r.band]);
+   if(r.kind==='dgl'||r.kind==='zodiacal_dgl')dgl=await array(m.dgl.bands[r.band]);
+   sun=solarAt(Date.parse(r.utc)/1000,await array(m.solar),m.solar);
+   delta=q?mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI:0;
+   result.delta=delta;result.sun=sun;
+   if(r.kind==='zodiacal_dgl'){result.zodiacal=new Float32Array(np);result.dgl=new Float32Array(np);}
+ }else {info=m.airglow[r.model];q=await array(info.bands[r.band]);for(const key of ['lit','hmin'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff'])result[key]=new Uint8Array(np);}
+ const {sampleMap}=await import('./sky-core.mjs?v=dgl-1');
  for(let i=0;i<np;i++){
  const v=pixVector(r.nside,i);
- if(r.kind==='zodiacal'){
+ if(r.kind!=='airglow'){
  const masked=r.anti&&v.reduce((s,x,j)=>s+x*sun[j],0)>Math.cos(r.elongation*D);
- result.flux[i]=masked?NaN:sampleMap(q,128,rotation(v,-delta));result.mag[i]=abZodi(result.flux[i]);if(masked)result.mag[i]=NaN;
+ const z=q?sampleMap(q,128,rotation(v,-delta)):0,g=dgl?sampleMap(dgl,128,v):0;
+ result.flux[i]=masked?NaN:z+g;result.mag[i]=masked?NaN:abZodi(result.flux[i]);
+ if(r.kind==='zodiacal_dgl'){result.zodiacal[i]=masked?NaN:z;result.dgl[i]=masked?NaN:g;}
  }else{const a=integrateRay(r.height,r.sza,v,q,info);for(const key of ['flux','lit','hmin','earth','valid','cutoff'])result[key][i]=a[key];result.mag[i]=a.earth?NaN:abAir(a.flux,m.bands[r.band]);}
  if(i%1024===0){self.postMessage({progress:i/np});await new Promise(resolve=>setTimeout(resolve,0));}
  }

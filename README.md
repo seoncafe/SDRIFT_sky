@@ -1,9 +1,9 @@
 # S-DRIFT Sky Background — browser app
 
-`docs/index.html`에서 zodiacal light와 airglow를 계산합니다. 사용자는 Python,
+`docs/index.html`에서 zodiacal light, DGL, airglow를 계산합니다. 사용자는 Python,
 healpy, NumPy를 설치할 필요가 없습니다. 최신 Chrome / Edge / Firefox / Safari에서
 Web Worker, CompressionStream, DecompressionStream과 Web Crypto를 사용합니다.
-외부 CDN이나 계산 서버 없이 작동하며, 데이터는 약 5.1 MB입니다.
+외부 CDN이나 계산 서버 없이 작동하며, 데이터는 약 8 MB입니다.
 
 ## GitHub Pages
 
@@ -29,9 +29,13 @@ http://localhost:8765/ 에 접속하십시오. `file://`로 HTML을 직접 열�
 
 ## 사용
 
+- 모델은 Zodiacal light / DGL / Zodiacal light + DGL / Airglow를 선택합니다.
 - 모델과 UV1 (200–400 nm), UV2 (250–400 nm), UV3 (300–400 nm), VIS (400–700 nm)를 선택합니다.
 - Zodiacal light는 시작 시 현재 UTC로 계산합니다. 날짜·시간 옆 ▲/▼와 키보드 ↑/↓는
   월·연도, 일·월, 초·분 등의 경계를 넘겨 변경합니다. 태양 이각은 기본 60°, 5° 단위입니다.
+- DGL과 Zodiacal light + DGL은 zodiacal과 같은 날짜·시간 및 anti-sun 설정을
+  사용합니다. DGL 분포는 RA, DEC에 고정되며 두 성분의 intensity를 더해 AB magnitude로 변환합니다.
+  합산 FITS에는 각 성분 intensity도 포함됩니다.
 - Airglow는 H와 위성 위치 SZA를 지정합니다. 기본 H=550 km, SZA=90°,
   GLOW + PALACE night layers입니다. 평균 태양 활동 모델로 날짜는 사용하지 않습니다.
 - NSIDE 기본값은 128입니다. 저성능 기기에서는 32 또는 64로 선택하십시오.
@@ -52,6 +56,16 @@ Zodiacal intensity를 회전·내삽한 뒤 AB magnitude로 변환하며,
 NSIDE 128 춘분 기준 template을 사용합니다. 날짜별 태양 벡터는 Python과 같은
 Astropy get_sun의 J2000 축 벡터를 12시간 간격으로 저장해 내삽합니다.
 지원 날짜는 UTC 1900–2100년입니다. Anti-sun은 태양과의 시선각 ≥ 지정값입니다.
+
+DGL은 IRIS 100 μm와 SFD E(B−V), Fitzpatrick 1999 R_V=3.1을 사용합니다.
+C2022_all 표의 Å를 μm로 변환하여 보간하고 원본 보정계수 2.1을 유지합니다.
+372.5 nm 미만의 correlation은 0.127596으로 일정하게 연장합니다.
+제공된 루틴의 `I_nu = alpha_prime / beta * I100 * lambda_um/100` 처방을 유지합니다.
+Figure 3의 alpha_prime은 이미 표본 beta를 포함하므로 이것은 논문의
+`alpha * beta` 방사전달 예측과 동등하지 않습니다. UV 연장 및 은하면/높은
+광학 깊이에 대한 외삽은 가정입니다. 파장 적분은 constant photon-counting,
+최대 0.5 nm 간격이며, DGL은 날짜에 따라 회전하지 않습니다.
+출처: https://arxiv.org/abs/2201.01378 .
 
 Airglow는 기존 q(h, SZA, component)를 band별 day/all 및 night-only 두 채널로
 합산한 데이터를 사용합니다. 흡수가 없는 constant throughput에서는 이 합산과
