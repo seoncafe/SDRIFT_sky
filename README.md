@@ -31,7 +31,7 @@ http://localhost:8765/ 에 접속하십시오. `file://`로 HTML을 직접 열�
 
 - 모델은 Zodiacal light / DGL / Zodiacal light + DGL / Airglow를 선택합니다.
 - 모델과 UV1 (200–400 nm), UV2 (250–400 nm), UV3 (300–400 nm), VIS (400–700 nm)를 선택합니다.
-- Zodiacal light는 시작 시 현재 UTC로 계산합니다. 날짜·시간 옆 ▲/▼와 키보드 ↑/↓는
+- 기본 모델은 Zodiacal light + DGL이며 시작 시 현재 UTC로 계산합니다. 날짜·시간 옆 ▲/▼와 키보드 ↑/↓는
   월·연도, 일·월, 초·분 등의 경계를 넘겨 변경합니다. 태양 이각은 기본 60°, 5° 단위입니다.
 - DGL과 Zodiacal light + DGL은 zodiacal과 같은 날짜·시간 및 anti-sun 설정을
   사용합니다. DGL 분포는 RA, DEC에 고정되며 두 성분의 intensity를 더해 AB magnitude로 변환합니다.
