@@ -39,13 +39,13 @@ function draw(){const r=savedRequest,b=manifest.bands[r.band];$('map-title').tex
  for(let x=0;x<700;x++){ctx.fillStyle=`rgb(${color(lo+(hi-lo)*x/699,lo,hi)})`;ctx.fillRect(250+x,644,1,18);}ctx.fillStyle='#203348';ctx.textAlign='center';for(let i=0;i<=6;i++){const x=250+700*i/6;ctx.fillText((lo+(hi-lo)*i/6).toFixed(1),x,681);}ctx.fillText('AB mag / arcsec²',600,707);
  $('legend').textContent=`Contour: 0.5 mag · ${lo.toFixed(1)}–${hi.toFixed(1)} · 큰 AB mag = 어두운 색${r.kind==='airglow'?' · 회색: 지구 차폐 · 빗금: 모델 범위 밖 / photoelectron cutoff · 기준 Sun RA = 0°, DEC = 0°':''}`;}
 function contours(lo,hi){const w=gridW,h=gridH,a=new Float32Array((w+1)*(h+1));a.fill(NaN);for(let y=0;y<=h;y++)for(let x=0;x<=w;x++){const v=inverseMoll(2*x/w-1,1-2*y/h);if(v){const s=sample(v);if(!result.valid||result.valid[s.i])a[y*(w+1)+x]=s.mag;}}
- ctx.lineWidth=.8;ctx.strokeStyle='#ffffffb0';ctx.font='11px system-ui';
+ ctx.lineWidth=.8;ctx.strokeStyle='#ffffffb0';ctx.font='11px system-ui';const usedLabels=[];
  for(let level=lo+.5;level<hi;level+=.5){ctx.beginPath();let label=null;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const vals=[a[y*(w+1)+x],a[y*(w+1)+x+1],a[(y+1)*(w+1)+x+1],a[(y+1)*(w+1)+x]];if(!vals.every(Number.isFinite))continue;const corners=[[x,y],[x+1,y],[x+1,y+1],[x,y+1]],p=[];
  for(let k=0;k<4;k++){const j=(k+1)%4;if((vals[k]<level)!==(vals[j]<level)){const f=(level-vals[k])/(vals[j]-vals[k]);p.push([area.x+(corners[k][0]+f*(corners[j][0]-corners[k][0]))*area.w/w,area.y+(corners[k][1]+f*(corners[j][1]-corners[k][1]))*area.h/h]);}}
  // Resolve saddle cells with their bilinear center value.
  if(p.length===4&&((vals.reduce((s,v)=>s+v,0)/4<level)!==(vals[0]<level)))p.push(p.shift());
- for(let k=0;k+1<p.length;k+=2){ctx.moveTo(...p[k]);ctx.lineTo(...p[k+1]);if(!label&&x>w*.25&&x<w*.75&&y>h*.2&&y<h*.8)label=p[k];}}
- ctx.stroke();if(label){ctx.fillStyle='#203348';ctx.fillRect(label[0]-13,label[1]-9,26,13);ctx.fillStyle='white';ctx.textAlign='center';ctx.fillText(level.toFixed(1),label[0],label[1]+1);}}
+ for(let k=0;k+1<p.length;k+=2){ctx.moveTo(...p[k]);ctx.lineTo(...p[k+1]);if(!label&&x>w*.15&&x<w*.85&&y>h*.15&&y<h*.85&&usedLabels.every(a=>Math.hypot(a[0]-p[k][0],a[1]-p[k][1])>30))label=p[k];}}
+ ctx.stroke();if(label){usedLabels.push(label);ctx.fillStyle='#203348';ctx.fillRect(label[0]-13,label[1]-9,26,13);ctx.fillStyle='white';ctx.textAlign='center';ctx.fillText(level.toFixed(1),label[0],label[1]+1);}}
 }
 canvas.onmousemove=e=>{if(!result)return;const box=canvas.getBoundingClientRect(),x=(e.clientX-box.left)*canvas.width/box.width,y=(e.clientY-box.top)*canvas.height/box.height,v=inverseMoll(2*(x-area.x)/area.w-1,1-2*(y-area.y)/area.h);if(!v){$('cursor').textContent='mag at (RA, DEC) = (—, —)';return;}const {mag,i}=sample(v),ra=mod(Math.atan2(v[1],v[0])/D,360),dec=Math.asin(v[2])/D;$('cursor').textContent=`mag at (RA, DEC) = (${ra.toFixed(2)}°, ${dec.toFixed(2)}°) : ${Number.isFinite(mag)?mag.toFixed(3):mag===Infinity?'∞':'—'}${result.earth?.[i]?' · Earth occulted':result.valid&&!result.valid[i]?' · outside model support':''}`;};
 function filename(){const r=savedRequest,stamp=r.kind==='zodiacal'?r.utc.slice(0,19).replaceAll('-','').replaceAll(':','').replace('T','_'):`H${r.height}_SZA${r.sza}_${r.model}`;return `${r.kind}_${r.band}_nside${r.nside}_${stamp}${r.kind==='zodiacal'&&r.anti?'_anti-sun':''}`;}
