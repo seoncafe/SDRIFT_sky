@@ -42,7 +42,7 @@ http://localhost:8765/ 에 접속하십시오. `file://`로 HTML을 직접 열�
   변경 시 자동 계산하며, `중지` 버튼으로 취소할 수 있습니다.
 - RA는 왼쪽으로 증가하며 모든 지도에서 contour 간격은 0.5 mag입니다.
   큰 AB magnitude의 색은 어둡습니다. 지도 위 포인터로 RA, DEC와 값을 읽습니다.
-- 끊어진 contour 조각마다 등급을 표시하고 긴 선에서는 반복 표시합니다. 짧거나 밀집된 조각에는 연결선과 작은 라벨을 사용합니다. 화면과 PDF/PNG 저장에 동일하게 적용됩니다. DGL처럼 작은 조각이 많은 지도에서는 라벨이 밀집할 수 있습니다.
+- Contour level마다 기존 방식으로 라벨을 표시합니다. 낮은 level에서 높은 level 순으로 선굵기를 0.6–2.2 px로 증가시키며, 화면과 PDF/PNG 저장에 동일하게 적용됩니다.
 - FITS.gz: RING / Equatorial HEALPix BINTABLE. Airglow에는 EARTH_OCCULTED,
   MODEL_VALID, MIN_ALTITUDE, PHOTO_CUTOFF와 sunlit radiance도 저장합니다.
 - PDF 저장 / 인쇄: 인쇄 창에서 대상을 PDF로 선택하십시오. 지도 제목·범례와
