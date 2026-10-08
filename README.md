@@ -67,7 +67,8 @@ C2022_all 표의 Å를 μm로 변환하여 보간하고 원본 보정계수 2.1�
 보정계수 2.1은 유지하며, 기존 inverse-beta 지도는 사용하지 않습니다.
 UV 연장 및 은하면/높은 광학 깊이에 대한 외삽은 가정입니다.
 파장 적분은 constant photon-counting, 최대 0.5 nm 간격이며,
-DGL은 날짜에 따라 회전하지 않습니다. DGL/합산 색상 하한은 14 mag입니다.
+DGL은 날짜에 따라 회전하지 않습니다. 색상 범위는 마스크 적용 후 유효한 mag의 최솟값·최댓값으로 자동 설정하고,
+0.5 mag 경계로 바깥쪽 반올림합니다.
 FITS에 BETAOP=MULTIPLY, ALPHAPP=T, BETAREF=1을 기록합니다.
 출처: https://arxiv.org/abs/2201.01378 .
 
