@@ -1,9 +1,9 @@
 // Modified 2026-10-08. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,D,mod} from './sky-core.mjs?v=dgl-1';
+import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,D,mod} from './sky-core.mjs?v=dgl-selfabs-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
- const r=await fetch(new URL('../data/'+meta.file,import.meta.url));if(!r.ok)throw Error(`데이터 읽기 실패: ${r.status} ${meta.file}`);
+ const r=await fetch(new URL('../data/'+meta.file+'?sha='+meta.sha256,import.meta.url));if(!r.ok)throw Error(`데이터 읽기 실패: ${r.status} ${meta.file}`);
  const b=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
  if(b.byteLength!==meta.bytes)throw Error('데이터 크기가 일치하지 않습니다.');
  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',b)),x=>x.toString(16).padStart(2,'0')).join('');
@@ -21,7 +21,7 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
    result.delta=delta;result.sun=sun;
    if(r.kind==='zodiacal_dgl'){result.zodiacal=new Float32Array(np);result.dgl=new Float32Array(np);}
  }else {info=m.airglow[r.model];q=await array(info.bands[r.band]);for(const key of ['lit','hmin'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff'])result[key]=new Uint8Array(np);}
- const {sampleMap}=await import('./sky-core.mjs?v=dgl-1');
+ const {sampleMap}=await import('./sky-core.mjs?v=dgl-selfabs-1');
  for(let i=0;i<np;i++){
  const v=pixVector(r.nside,i);
  if(r.kind!=='airglow'){

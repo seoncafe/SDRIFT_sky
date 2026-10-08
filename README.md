@@ -60,11 +60,15 @@ Astropy get_sun의 J2000 축 벡터를 12시간 간격으로 저장해 내삽합
 DGL은 IRIS 100 μm와 SFD E(B−V), Fitzpatrick 1999 R_V=3.1을 사용합니다.
 C2022_all 표의 Å를 μm로 변환하여 보간하고 원본 보정계수 2.1을 유지합니다.
 372.5 nm 미만의 correlation은 0.127596으로 일정하게 연장합니다.
-제공된 루틴의 `I_nu = alpha_prime / beta * I100 * lambda_um/100` 처방을 유지합니다.
-Figure 3의 alpha_prime은 이미 표본 beta를 포함하므로 이것은 논문의
-`alpha * beta` 방사전달 예측과 동등하지 않습니다. UV 연장 및 은하면/높은
-광학 깊이에 대한 외삽은 가정입니다. 파장 적분은 constant photon-counting,
-최대 0.5 nm 간격이며, DGL은 날짜에 따라 회전하지 않습니다.
+논문 식 (3)–(6)의 자기흡수식 `I_nu = alpha * beta * I100 * lambda_um/100`을 적용합니다.
+단, C2022_all은 Figure 3의 alpha_prime 표이며 원래 alpha 및 표본 유효 beta를
+확보하지 못했으므로, **beta_ref=1 (광학적으로 얇은 표본), alpha ≈ alpha_prime**을
+가정합니다. 이는 자기흡수 법칙은 논문에 따른 계산이지만 정규화는 근사입니다.
+보정계수 2.1은 유지하며, 기존 inverse-beta 지도는 사용하지 않습니다.
+UV 연장 및 은하면/높은 광학 깊이에 대한 외삽은 가정입니다.
+파장 적분은 constant photon-counting, 최대 0.5 nm 간격이며,
+DGL은 날짜에 따라 회전하지 않습니다. DGL/합산 색상 하한은 14 mag입니다.
+FITS에 BETAOP=MULTIPLY, ALPHAPP=T, BETAREF=1을 기록합니다.
 출처: https://arxiv.org/abs/2201.01378 .
 
 Airglow는 기존 q(h, SZA, component)를 band별 day/all 및 night-only 두 채널로

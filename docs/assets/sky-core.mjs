@@ -115,7 +115,7 @@ export function fitsMap(result,request,manifest){
   else{
     rows.push(['DATE-UTC',request.utc.replace('Z','')],['ANTISUN',request.anti],['ELONGMIN',request.elongation]);
     if(hasZodi)rows.push(['REF-UTC',manifest.solar.reference_utc],['ROT-DEG',result.delta/D],['SRC_SHA',manifest.zodiacal[request.band].source_sha256]);
-    if(hasDgl){const m=manifest.dgl;rows.push(['CORRMOD','C2022_all'],['CORRSCL',m.metadata.scale],['CORRMIN',m.metadata.correlation_min_nm],['UVEXT','CONSTANT'],['BETAOP','DIVIDE'],['DGLFIXED',true],['DGL_SHA',m.bands[request.band].source_sha256]);}
+    if(hasDgl){const m=manifest.dgl;rows.push(['CORRMOD','C2022_all'],['CORRSCL',m.metadata.scale],['CORRMIN',m.metadata.correlation_min_nm],['UVEXT','CONSTANT'],['BETAOP','MULTIPLY'],['ALPHAPP',m.metadata.alpha_approximation],['BETAREF',m.metadata.beta_reference],['DGLFIXED',true],['DGL_SHA',m.bands[request.band].source_sha256]);}
     if(request.kind==='zodiacal_dgl')rows.push(['TUNIT3','MJy/sr'],['TUNIT4','MJy/sr']);
   }
   const ext=header(rows),dataBytes=n*names.length*4,out=new Uint8Array(primary.length+ext.length+Math.ceil(dataBytes/2880)*2880);
