@@ -4,7 +4,7 @@ let manifest,worker,result,savedRequest,date=new Date(),generation=0;
 const fields=['year','month','day','hour','minute','second'],labels=['년','월','일','시','분','초'];
 const getters=['getUTCFullYear','getUTCMonth','getUTCDate','getUTCHours','getUTCMinutes','getUTCSeconds'],setters=['setUTCFullYear','setUTCMonth','setUTCDate','setUTCHours','setUTCMinutes','setUTCSeconds'];
 function dateUI(){fields.forEach((f,i)=>{$(f).value=String(date[getters[i]]()+(i===1?1:0)).padStart(i===0?4:2,'0');});}
-fields.forEach((f,i)=>{const wrap=document.createElement('div');wrap.className='datepart';wrap.innerHTML=`<input id="${f}" type="text" inputmode="numeric" aria-label="UTC ${labels[i]}"><span>${labels[i]}</span><div><button type="button" aria-label="${labels[i]} 증가">▲</button><br><button type="button" aria-label="${labels[i]} 감소">▼</button></div>`;$('datetime').append(wrap);
+fields.forEach((f,i)=>{const wrap=document.createElement('div');wrap.className='datepart';wrap.innerHTML=`<input id="${f}" type="text" inputmode="numeric" aria-label="UTC ${labels[i]}"><div class="date-arrows"><button type="button" aria-label="${labels[i]} 증가">▲</button><button type="button" aria-label="${labels[i]} 감소">▼</button></div><span>${labels[i]}</span>`;$('datetime').append(wrap);
  function change(delta){date[setters[i]](date[getters[i]]()+delta);dateUI();schedule();}
  wrap.querySelectorAll('button').forEach((b,j)=>b.onclick=()=>change(j===0?1:-1));$(f).onkeydown=e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();change(e.key==='ArrowUp'?1:-1);}};
  $(f).onchange=()=>{const v=Number($(f).value);if(Number.isInteger(v)){date[setters[i]](v-(i===1?1:0));}dateUI();schedule();};});
