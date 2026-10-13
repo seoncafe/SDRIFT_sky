@@ -38,8 +38,18 @@ function draw(){const r=savedRequest,b=manifest.bands[r.band];$('map-title').tex
  ctx.fillStyle='#203348';ctx.font='14px system-ui';ctx.textAlign='center';for(const ra of [150,90,30,0,330,270,210]){const [x]=moll(ra*D,0);ctx.fillText(ra+'°',area.x+(x+1)*area.w/2,area.y+area.h+24);}ctx.fillText('RA (Equatorial) — increases to the left',600,area.y+area.h+48);ctx.save();ctx.translate(25,area.y+area.h/2);ctx.rotate(-Math.PI/2);ctx.fillText('DEC (°)',0,0);ctx.restore();for(const dec of [-60,-30,0,30,60]){const [,y]=moll(0,dec*D);ctx.textAlign='right';ctx.fillText(dec+'°',area.x-12,area.y+(1-y)*area.h/2+5);}
  for(let x=0;x<700;x++){ctx.fillStyle=`rgb(${color(lo+(hi-lo)*x/699,lo,hi)})`;ctx.fillRect(250+x,644,1,18);}ctx.fillStyle='#203348';ctx.textAlign='center';for(let i=0;i<=6;i++){const x=250+700*i/6;ctx.fillText((lo+(hi-lo)*i/6).toFixed(1),x,681);}ctx.fillText('AB mag / arcsec²',600,707);
  $('legend').textContent=`Contour: 0.5 mag · ${lo.toFixed(1)}–${hi.toFixed(1)} · 큰 AB mag = 어두운 색 · 높은 contour level = 굵은 선${result.moon?' · Moon (geocentric RA, DEC) = ('+mod(Math.atan2(result.moon[1],result.moon[0])/D,360).toFixed(2)+'°, '+(Math.asin(result.moon[2])/D).toFixed(2)+'°)':''}${r.kind==='airglow'?' · 회색: 지구 차폐 · 빗금: 모델 범위 밖 / photoelectron cutoff · 기준 Sun RA = 0°, DEC = 0°':''}`;}
+function drawSeparation(v,angle,color){
+ if(!(angle>0&&angle<180))return;
+ const project=p=>{const q=moll(Math.atan2(p[1],p[0]),Math.asin(Math.max(-1,Math.min(1,p[2]))));return [area.x+(q[0]+1)*area.w/2,area.y+(1-q[1])*area.h/2];};
+ ctx.save();ctx.strokeStyle=color;ctx.lineWidth=1.4;
+  const reference=Math.abs(v[2])<.9?[0,0,1]:[1,0,0];let u=[v[1]*reference[2]-v[2]*reference[1],v[2]*reference[0]-v[0]*reference[2],v[0]*reference[1]-v[1]*reference[0]];const n=Math.hypot(...u);u=u.map(x=>x/n);
+  const w=[v[1]*u[2]-v[2]*u[1],v[2]*u[0]-v[0]*u[2],v[0]*u[1]-v[1]*u[0]],a=angle*D;let previous;
+  ctx.setLineDash([5,4]);ctx.beginPath();for(let i=0;i<=360;i++){const t=i*D,p=project(v.map((x,j)=>Math.cos(a)*x+Math.sin(a)*(Math.cos(t)*u[j]+Math.sin(t)*w[j])));if(!previous||Math.hypot(p[0]-previous[0],p[1]-previous[1])>area.w/4)ctx.moveTo(...p);else ctx.lineTo(...p);previous=p;}ctx.stroke();ctx.setLineDash([]);
+ ctx.restore();
+}
 function drawSun(){
  if(!result.sun)return;
+ if(savedRequest.anti)drawSeparation(result.sun,savedRequest.elongation,'#e83131');
  const v=result.sun,q=moll(Math.atan2(v[1],v[0]),Math.asin(v[2])),x=area.x+(q[0]+1)*area.w/2,y=area.y+(1-q[1])*area.h/2;
  ctx.save();ctx.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2?3.5:8,px=x+r*Math.cos(a),py=y+r*Math.sin(a);if(i)ctx.lineTo(px,py);else ctx.moveTo(px,py);}ctx.closePath();ctx.fillStyle='#e83131';ctx.fill();ctx.lineWidth=1;ctx.strokeStyle='#203348';ctx.stroke();
  ctx.font='bold 12px system-ui';ctx.textAlign=x>area.x+area.w-55?'right':'left';ctx.textBaseline='bottom';const lx=ctx.textAlign==='right'?x-10:x+10;ctx.lineWidth=3;ctx.strokeStyle='white';ctx.strokeText('Sun',lx,y-9);ctx.fillStyle='#c02020';ctx.fillText('Sun',lx,y-9);ctx.restore();
@@ -48,11 +58,7 @@ function drawMoon(){
  if(!result.moon)return;const v=result.moon,r=savedRequest;
  const project=p=>{const q=moll(Math.atan2(p[1],p[0]),Math.asin(p[2]));return [area.x+(q[0]+1)*area.w/2,area.y+(1-q[1])*area.h/2];};
  ctx.save();ctx.strokeStyle='#b56d00';ctx.lineWidth=1.4;
- if(r.moonAvoid&&r.moonAngle>0&&r.moonAngle<180){
-  const reference=Math.abs(v[2])<.9?[0,0,1]:[1,0,0];let u=[v[1]*reference[2]-v[2]*reference[1],v[2]*reference[0]-v[0]*reference[2],v[0]*reference[1]-v[1]*reference[0]];const n=Math.hypot(...u);u=u.map(x=>x/n);
-  const w=[v[1]*u[2]-v[2]*u[1],v[2]*u[0]-v[0]*u[2],v[0]*u[1]-v[1]*u[0]],a=r.moonAngle*D;let previous;
-  ctx.setLineDash([5,4]);ctx.beginPath();for(let i=0;i<=360;i++){const t=i*D,p=project(v.map((x,j)=>Math.cos(a)*x+Math.sin(a)*(Math.cos(t)*u[j]+Math.sin(t)*w[j])));if(!previous||Math.hypot(p[0]-previous[0],p[1]-previous[1])>area.w/4)ctx.moveTo(...p);else ctx.lineTo(...p);previous=p;}ctx.stroke();ctx.setLineDash([]);
- }
+ if(r.moonAvoid)drawSeparation(v,r.moonAngle,'#b56d00');
  const [x,y]=project(v);ctx.beginPath();ctx.arc(x,y,6,0,2*Math.PI);ctx.fillStyle='#ffcf56';ctx.fill();ctx.strokeStyle='#203348';ctx.stroke();ctx.font='bold 12px system-ui';ctx.textAlign=x>area.x+area.w-65?'right':'left';ctx.textBaseline='middle';const lx=ctx.textAlign==='right'?x-10:x+10;ctx.strokeStyle='white';ctx.lineWidth=3;ctx.strokeText('Moon',lx,y);ctx.fillStyle='#805000';ctx.fillText('Moon',lx,y);ctx.restore();
 }
 function contours(lo,hi){const w=gridW,h=gridH,a=new Float32Array((w+1)*(h+1));a.fill(NaN);for(let y=0;y<=h;y++)for(let x=0;x<=w;x++){const v=inverseMoll(2*x/w-1,1-2*y/h);if(v){const s=sample(v);if(!result.valid||result.valid[s.i])a[y*(w+1)+x]=s.mag;}}
