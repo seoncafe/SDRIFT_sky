@@ -1,0 +1,7 @@
+# Python >= 3.10. Interactive --show requires a graphical desktop and a
+# Matplotlib GUI backend supplied by your Python installation (e.g. Tk).
+# Headless --pdf/--png and coordinate-only queries do not need a GUI backend.
+numpy>=1.23
+healpy>=1.16
+astropy>=5
+matplotlib>=3.6

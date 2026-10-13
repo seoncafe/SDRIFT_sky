@@ -1,4 +1,4 @@
-# S-DRIFT Sky Background — browser app
+# S-DRIFT Sky Background — web and Python
 
 `docs/index.html`에서 zodiacal light, DGL, airglow를 계산합니다. 사용자는 Python,
 healpy, NumPy를 설치할 필요가 없습니다. 최신 Chrome / Edge / Firefox / Safari에서
@@ -14,7 +14,7 @@ Web Worker, CompressionStream, DecompressionStream과 Web Crypto를 사용합니
 GitHub Pages의 공식 설정 안내:
 https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site
 
-사이트에 필요한 파일은 `docs/` 전체와 이 문서뿐입니다. 원본 FITS/NPZ,
+웹 실행에는 `docs/` 전체와 이 문서만 필요합니다. Python 사용자를 위한 `sdrift_sky.py`와 `requirements-python.txt`도 함께 제공합니다. 원본 FITS/NPZ,
 Python GUI, GLOW/PALACE 소스, PDF 결과, 테스트와 생성 스크립트는 웹 실행에 필요하지
 않습니다. `docs/.nojekyll`도 포함하십시오. 모든 자산 경로는 상대 경로입니다.
 
@@ -27,7 +27,61 @@ python3 -m http.server 8765 --directory docs
 http://localhost:8765/ 에 접속하십시오. `file://`로 HTML을 직접 열면 데이터와
 모듈 읽기가 차단될 수 있습니다. HTTPS 또는 localhost에서 사용하십시오.
 
-## 사용
+
+## Python: RA, DEC, UTC 계산과 지도 표시
+
+Python 3.10 이상에서 저장소를 내려받고 실행합니다. 원본 FITS나 GLOW/PALACE
+설치 없이 저장소의 `docs/data/`를 사용합니다. 실행 중 인터넷 연결은 필요하지 않습니다.
+
+```sh
+python3 -m pip install -r requirements-python.txt
+python3 sdrift_sky.py --ra 0 --dec 60 --date 2026-10-13T12:00:00Z --band VIS --model zodiacal_dgl --show
+```
+
+RA, DEC는 **degree**, 날짜는 **UTC**입니다. `--model`은 `zodiacal`, `dgl`,
+`zodiacal_dgl`이며 기본값은 합산 모드입니다. `--band`는 UV1/UV2/UV3/VIS,
+기본값은 VIS입니다. 날짜 범위는 1900–2100년입니다. 단일 좌표만 계산하려면
+`--show`를 생략합니다. 표적은 지도에 파란 X로 표시됩니다.
+
+화면 없이 파일 저장:
+
+```sh
+python3 sdrift_sky.py --ra 0 --dec 60 --date 2026-10-13T12:00:00Z \
+  --band VIS --nside 128 --contour-step 0.2 \
+  --pdf sky.pdf --png sky.png --fits sky.fits.gz --json point.json
+```
+
+세 모드 모두 Sun/Moon 위치, 빨간/주황색 점선 separation 경계, 회피 마스크를
+공유합니다. 기본 Sun separation은 90°, Moon separation은 60°입니다.
+`--sun-separation 100 --moon-separation 70`처럼 변경하거나
+`--no-sun-avoidance`, `--no-moon-avoidance`로 각각 끕니다.
+Contour는 기본 0.5 mag이고 `--contour-step`으로 0.1–1.0 mag를 선택합니다.
+FITS.gz는 회피 영역을 NaN으로 저장합니다. 합산 FITS에는 두 성분도 저장됩니다.
+
+좌표 질의는 주어진 방향에 대해 intensity를 내삽한 **회피 마스크 적용 전** 밝기와
+실제 태양·달 separation, `visible` 여부를 반환합니다. 제외된 방향도 원래 밝기를
+계산하며 지도에는 표시하지 않습니다. `display_ab_mag_arcsec2`는 이 경우 null입니다.
+지도는 HEALPix 픽셀 중심에서 계산하므로 웹의 포인터 픽셀값과 좌표 직접 질의값은
+픽셀 크기만큼 다른 방향을 나타낼 수 있습니다. 표시는 AB mag / arcsec²입니다.
+
+Python에서 함수로 호출:
+
+```python
+from sdrift_sky import SkyModel
+sky = SkyModel()
+point = sky.point(0, 60, "2026-10-13T12:00:00Z", band="VIS", model="zodiacal_dgl")
+print(point)
+result = sky.sky_map("2026-10-13T12:00:00Z", nside=128, band="VIS", model="zodiacal_dgl")
+figure = sky.plot(result, target=(0, 60), contour_step=0.5)
+figure.savefig("sky.pdf", bbox_inches="tight")
+```
+
+`--show`에는 GUI backend와 그래픽 데스크톱이 필요합니다. 서버에서는
+`--pdf`/`--png`를 사용합니다. Sun/Moon 방향은 웹과 동일한 저장된 지구 중심
+GCRS 데이터이며 관측지·위성 시차나 달빛 산란은 포함하지 않습니다. DGL은
+아래에 설명된 α ≈ α′ 보정 가정을 따르며 UV correlation 연장은 관측값이 아닙니다.
+
+## 웹 사용
 
 - 모델은 Zodiacal light / DGL / Zodiacal light + DGL / Airglow를 선택합니다.
 - 모델과 UV1 (200–400 nm), UV2 (250–400 nm), UV3 (300–400 nm), VIS (400–700 nm)를 선택합니다.
