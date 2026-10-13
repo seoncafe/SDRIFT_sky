@@ -154,8 +154,8 @@ GLOW photoelectron cutoff(SZA ≥ 1.85 rad)로 인해 모델 적용이 불완전
 PALACE: https://gmd.copernicus.org/articles/18/4353/2025/ (CC BY 4.0).
 GLOW와 zodiacal 라이선스는 `docs/data/`에 포함되어 있습니다.
 
-This software is part of the GLOW model. Use is governed by the Open Source
-Academic Research License Agreement contained in the file
-[glowlicense.txt](docs/data/glowlicense.txt).
+This software is based on calculations performed using the GLOW model.
+Use of the GLOW model is governed by the Open Source Academic Research License
+Agreement contained in [glowlicense.txt](docs/data/glowlicense.txt).
 Browser routines modified 2026-10-08.
 
