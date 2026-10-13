@@ -11,9 +11,6 @@ Web Worker, CompressionStream, DecompressionStream과 Web Crypto를 사용합니
 **Deploy from a branch → main (또는 실제 기본 브랜치) → /docs → Save**를 선택합니다.
 배포 후 주소: https://seoncafe.github.io/SDRIFT_sky/
 
-GitHub Pages의 공식 설정 안내:
-https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site
-
 웹 실행에는 `docs/` 전체와 이 문서만 필요합니다. Python 사용자를 위한 `sdrift_sky.py`와 `requirements-python.txt`도 함께 제공합니다. 원본 FITS/NPZ,
 Python GUI, GLOW/PALACE 소스, PDF 결과, 테스트와 생성 스크립트는 웹 실행에 필요하지
 않습니다. `docs/.nojekyll`도 포함하십시오. 모든 자산 경로는 상대 경로입니다.
