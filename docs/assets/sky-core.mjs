@@ -114,7 +114,8 @@ export function fitsMap(result,request,manifest){
   if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km']);}
   else{
     rows.push(['DATE-UTC',request.utc.replace('Z','')],['ANTISUN',request.anti],['ELONGMIN',request.elongation]);
-    if(hasZodi&&result.moon)rows.push(['MOONMASK',!!request.moonAvoid],['MOONMIN',request.moonAngle??60],['MOONRA',mod(Math.atan2(result.moon[1],result.moon[0])/D,360)],['MOONDEC',Math.asin(result.moon[2])/D],['MOONOBS','GEOCENTRIC']);
+    if(result.sun)rows.push(['SUNRA',mod(Math.atan2(result.sun[1],result.sun[0])/D,360)],['SUNDEC',Math.asin(result.sun[2])/D]);
+    if(result.moon)rows.push(['MOONMASK',!!request.moonAvoid],['MOONMIN',request.moonAngle??60],['MOONRA',mod(Math.atan2(result.moon[1],result.moon[0])/D,360)],['MOONDEC',Math.asin(result.moon[2])/D],['MOONOBS','GEOCENTRIC']);
     if(hasZodi)rows.push(['REF-UTC',manifest.solar.reference_utc],['ROT-DEG',result.delta/D],['SRC_SHA',manifest.zodiacal[request.band].source_sha256]);
     if(hasDgl){const m=manifest.dgl;rows.push(['CORRMOD','C2022_all'],['CORRSCL',m.metadata.scale],['CORRMIN',m.metadata.correlation_min_nm],['UVEXT','CONSTANT'],['BETAOP','MULTIPLY'],['ALPHAPP',m.metadata.alpha_approximation],['BETAREF',m.metadata.beta_reference],['DGLFIXED',true],['DGL_SHA',m.bands[request.band].source_sha256]);}
     if(request.kind==='zodiacal_dgl')rows.push(['TUNIT3','MJy/sr'],['TUNIT4','MJy/sr']);

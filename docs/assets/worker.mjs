@@ -1,5 +1,5 @@
 // Modified 2026-10-08. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,D,mod} from './sky-core.mjs?v=moon-avoid-1';
+import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,D,mod} from './sky-core.mjs?v=consistent-sky-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -19,10 +19,10 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
    sun=solarAt(Date.parse(r.utc)/1000,await array(m.solar),m.solar);
    delta=q?mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI:0;
    result.delta=delta;result.sun=sun;
-   if(q){moon=solarAt(Date.parse(r.utc)/1000,await array(m.lunar),m.lunar);result.moon=moon;}
+   moon=solarAt(Date.parse(r.utc)/1000,await array(m.lunar),m.lunar);result.moon=moon;
    if(r.kind==='zodiacal_dgl'){result.zodiacal=new Float32Array(np);result.dgl=new Float32Array(np);}
  }else {info=m.airglow[r.model];q=await array(info.bands[r.band]);for(const key of ['lit','hmin'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff'])result[key]=new Uint8Array(np);}
- const {sampleMap}=await import('./sky-core.mjs?v=moon-avoid-1');
+ const {sampleMap}=await import('./sky-core.mjs?v=consistent-sky-1');
  for(let i=0;i<np;i++){
  const v=pixVector(r.nside,i);
  if(r.kind!=='airglow'){

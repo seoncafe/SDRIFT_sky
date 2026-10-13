@@ -32,7 +32,7 @@ http://localhost:8765/ 에 접속하십시오. `file://`로 HTML을 직접 열�
 - 모델은 Zodiacal light / DGL / Zodiacal light + DGL / Airglow를 선택합니다.
 - 모델과 UV1 (200–400 nm), UV2 (250–400 nm), UV3 (300–400 nm), VIS (400–700 nm)를 선택합니다.
 - Sun avoidance를 켜면 Sun separation 경계를 빨간 점선으로 표시합니다. 태양 위치는 빨간 별과 Sun 라벨로 표시하며 Sun avoidance 설정을 꺼도 유지합니다.
-- Zodiacal / Zodiacal + DGL에는 달의 위치와 회피각 경계를 표시합니다. Moon avoidance는 기본으로 활성화하며 최소 이각 60°, 5° 단위로 변경합니다. 태양과 달 회피를 동시에 켜면 두 조건을 모두 만족하는 방향만 표시·저장합니다. DGL 단독 및 airglow에는 달 마스크를 적용하지 않습니다.
+- Zodiacal / DGL / Zodiacal + DGL 모두에 달의 위치와 회피각 경계를 표시합니다. Moon avoidance는 기본으로 활성화하며 최소 이각 60°, 5° 단위로 변경합니다. 태양과 달 회피를 동시에 켜면 두 조건을 모두 만족하는 방향만 표시·저장합니다. Airglow에는 날짜 기반 태양·달 마스크를 적용하지 않습니다.
 - 달은 Astropy builtin으로 계산한 지구 중심 GCRS 위치를 3시간 간격으로 저장하고 내삽합니다. 1900–2100년을 지원하며 관측지/위성 시차 및 달빛 산란은 포함하지 않습니다. FITS에는 MOONMASK, MOONMIN, MOONRA, MOONDEC, MOONOBS를 기록합니다.
 - 기본 모델은 Zodiacal light + DGL이며 시작 시 현재 UTC로 계산합니다. 날짜·시간 옆 ▲/▼와 키보드 ↑/↓는
   월·연도, 일·월, 초·분 등의 경계를 넘겨 변경합니다. Sun separation은 기본 90°, 5° 단위입니다.
