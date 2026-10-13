@@ -12,7 +12,7 @@ date.setUTCMilliseconds(0);dateUI();$('now').onclick=()=>{date=new Date();date.s
 let timer;function schedule(){clearTimeout(timer);timer=setTimeout(calculate,250);}
 function panels(){$('moon-controls').hidden=!['zodiacal','zodiacal_dgl'].includes($('kind').value);$('zodi-controls').hidden=$('kind').value==='airglow';$('dgl-hint').hidden=!['dgl','zodiacal_dgl'].includes($('kind').value);$('air-controls').hidden=$('kind').value!=='airglow';}
 for(const id of ['kind','band','nside','anti','elongation','moon-avoid','moon-angle','height','sza','model'])$(id).onchange=()=>{panels();schedule();};
-$('contour').onchange=()=>{if(result)draw();};$('calculate').onclick=calculate;
+for(const id of ['contour','contour-step'])$(id).onchange=()=>{if(result)draw();};$('calculate').onclick=calculate;
 function stop(){generation++;worker?.terminate();worker=null;$('cancel').disabled=true;$('progress').hidden=true;}
 $('cancel').onclick=()=>{stop();$('status').textContent='계산을 중지했습니다. 표시 중인 지도는 이전 결과입니다.';};
 function request(){const r={kind:$('kind').value,band:$('band').value,nside:Number($('nside').value),utc:date.toISOString(),anti:$('anti').checked,elongation:Number($('elongation').value),moonAvoid:$('moon-avoid').checked,moonAngle:Number($('moon-angle').value),height:Number($('height').value),sza:Number($('sza').value),model:$('model').value};
@@ -37,7 +37,7 @@ function draw(){const r=savedRequest,b=manifest.bands[r.band];$('map-title').tex
  drawMoon();drawSun();ctx.lineWidth=1;ctx.strokeStyle='#5b6b7a';ctx.beginPath();ctx.ellipse(area.x+area.w/2,area.y+area.h/2,area.w/2,area.h/2,0,0,2*Math.PI);ctx.stroke();
  ctx.fillStyle='#203348';ctx.font='14px system-ui';ctx.textAlign='center';for(const ra of [150,90,30,0,330,270,210]){const [x]=moll(ra*D,0);ctx.fillText(ra+'°',area.x+(x+1)*area.w/2,area.y+area.h+24);}ctx.fillText('RA (Equatorial) — increases to the left',600,area.y+area.h+48);ctx.save();ctx.translate(25,area.y+area.h/2);ctx.rotate(-Math.PI/2);ctx.fillText('DEC (°)',0,0);ctx.restore();for(const dec of [-60,-30,0,30,60]){const [,y]=moll(0,dec*D);ctx.textAlign='right';ctx.fillText(dec+'°',area.x-12,area.y+(1-y)*area.h/2+5);}
  for(let x=0;x<700;x++){ctx.fillStyle=`rgb(${color(lo+(hi-lo)*x/699,lo,hi)})`;ctx.fillRect(250+x,644,1,18);}ctx.fillStyle='#203348';ctx.textAlign='center';for(let i=0;i<=6;i++){const x=250+700*i/6;ctx.fillText((lo+(hi-lo)*i/6).toFixed(1),x,681);}ctx.fillText('AB mag / arcsec²',600,707);
- $('legend').textContent=`Contour: 0.5 mag · ${lo.toFixed(1)}–${hi.toFixed(1)} · 큰 AB mag = 어두운 색 · 높은 contour level = 굵은 선${result.moon?' · Moon (geocentric RA, DEC) = ('+mod(Math.atan2(result.moon[1],result.moon[0])/D,360).toFixed(2)+'°, '+(Math.asin(result.moon[2])/D).toFixed(2)+'°)':''}${r.kind==='airglow'?' · 회색: 지구 차폐 · 빗금: 모델 범위 밖 / photoelectron cutoff · 기준 Sun RA = 0°, DEC = 0°':''}`;}
+ $('legend').textContent=`Contour: ${Number($('contour-step').value).toFixed(1)} mag · ${lo.toFixed(1)}–${hi.toFixed(1)} · 큰 AB mag = 어두운 색 · 높은 contour level = 굵은 선${result.moon?' · Moon (geocentric RA, DEC) = ('+mod(Math.atan2(result.moon[1],result.moon[0])/D,360).toFixed(2)+'°, '+(Math.asin(result.moon[2])/D).toFixed(2)+'°)':''}${r.kind==='airglow'?' · 회색: 지구 차폐 · 빗금: 모델 범위 밖 / photoelectron cutoff · 기준 Sun RA = 0°, DEC = 0°':''}`;}
 function drawSeparation(v,angle,color){
  if(!(angle>0&&angle<180))return;
  const project=p=>{const q=moll(Math.atan2(p[1],p[0]),Math.asin(Math.max(-1,Math.min(1,p[2]))));return [area.x+(q[0]+1)*area.w/2,area.y+(1-q[1])*area.h/2];};
@@ -63,8 +63,8 @@ function drawMoon(){
 }
 function contours(lo,hi){const w=gridW,h=gridH,a=new Float32Array((w+1)*(h+1));a.fill(NaN);for(let y=0;y<=h;y++)for(let x=0;x<=w;x++){const v=inverseMoll(2*x/w-1,1-2*y/h);if(v){const s=sample(v);if(!result.valid||result.valid[s.i])a[y*(w+1)+x]=s.mag;}}
  ctx.lineWidth=.8;ctx.strokeStyle='#ffffffb0';ctx.font='11px system-ui';const usedLabels=[];
- const count=Math.max(1,Math.round((hi-lo)*2)-1);
- for(let level=lo+.5;level<hi;level+=.5){ctx.lineWidth=count>1?.6+1.6*((level-lo-.5)*2)/(count-1):1.2;ctx.beginPath();let label=null;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const vals=[a[y*(w+1)+x],a[y*(w+1)+x+1],a[(y+1)*(w+1)+x+1],a[(y+1)*(w+1)+x]];if(!vals.every(Number.isFinite))continue;const corners=[[x,y],[x+1,y],[x+1,y+1],[x,y+1]],p=[];
+ const step=Number($('contour-step').value),first=Math.floor((lo+1e-9)/step)+1,last=Math.ceil((hi-1e-9)/step)-1,count=Math.max(1,last-first+1);
+ for(let k=first;k<=last;k++){const level=Number((k*step).toFixed(1));ctx.lineWidth=count>1?.6+1.6*(k-first)/(count-1):1.2;ctx.beginPath();let label=null;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const vals=[a[y*(w+1)+x],a[y*(w+1)+x+1],a[(y+1)*(w+1)+x+1],a[(y+1)*(w+1)+x]];if(!vals.every(Number.isFinite))continue;const corners=[[x,y],[x+1,y],[x+1,y+1],[x,y+1]],p=[];
  for(let k=0;k<4;k++){const j=(k+1)%4;if((vals[k]<level)!==(vals[j]<level)){const f=(level-vals[k])/(vals[j]-vals[k]);p.push([area.x+(corners[k][0]+f*(corners[j][0]-corners[k][0]))*area.w/w,area.y+(corners[k][1]+f*(corners[j][1]-corners[k][1]))*area.h/h]);}}
  // Resolve saddle cells with their bilinear center value.
  if(p.length===4&&((vals.reduce((s,v)=>s+v,0)/4<level)!==(vals[0]<level)))p.push(p.shift());

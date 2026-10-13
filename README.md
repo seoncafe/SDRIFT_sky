@@ -43,7 +43,7 @@ http://localhost:8765/ 에 접속하십시오. `file://`로 HTML을 직접 열�
   GLOW + PALACE night layers입니다. 평균 태양 활동 모델로 날짜는 사용하지 않습니다.
 - NSIDE 기본값은 128입니다. 저성능 기기에서는 32 또는 64로 선택하십시오.
   변경 시 자동 계산하며, `중지` 버튼으로 취소할 수 있습니다.
-- RA는 왼쪽으로 증가하며 모든 지도에서 contour 간격은 0.5 mag입니다.
+- RA는 왼쪽으로 증가하며 모든 지도에서 contour 간격은 기본 0.5 mag이며, 0.1–1.0 mag를 0.1 mag 단위로 선택할 수 있습니다. 선택을 바꾸면 기존 지도에 바로 적용되고 PDF/PNG도 같은 간격으로 저장됩니다.
   큰 AB magnitude의 색은 어둡습니다. 지도 위 포인터로 RA, DEC와 값을 읽습니다.
 - Contour level마다 기존 방식으로 라벨을 표시합니다. 낮은 level에서 높은 level 순으로 선굵기를 0.6–2.2 px로 증가시키며, 화면과 PDF/PNG 저장에 동일하게 적용됩니다.
 - FITS.gz: RING / Equatorial HEALPix BINTABLE. Airglow에는 EARTH_OCCULTED,
