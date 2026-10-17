@@ -119,7 +119,7 @@ def _numpy_kernel(height, sza, directions, q, z, chi, support, step):
 
 class AirglowOrbitModel(SkyModel):
     def evaluate(self, directions, date, band='VIS', model='combined', height=650., orbit='dawn-dusk', phase=0.,
-                 epoch=None, zenith_min=0., zenith_max=90., sun_avoidance=True, sun_separation=90.,
+                 epoch=None, zenith_min=0., zenith_max=180., sun_avoidance=True, sun_separation=90.,
                  moon_avoidance=True, moon_separation=60., engine='auto', step_km=2.):
         if band not in BANDS or model not in ('glow', 'combined'): raise ValueError('Unknown band/model')
         if not all(np.isfinite(x) for x in (zenith_min, zenith_max, sun_separation, moon_separation, step_km)) or not (0 <= zenith_min <= zenith_max <= 180 and 0 <= sun_separation <= 180 and 0 <= moon_separation <= 180 and step_km > 0):
@@ -246,7 +246,7 @@ def main():
     p.add_argument('--phase', type=float, default=0.)
     p.add_argument('--epoch', help='UTC of the input phase; omit to hold phase fixed')
     p.add_argument('--zenith-min', type=float, default=0.)
-    p.add_argument('--zenith-max', type=float, default=90.)
+    p.add_argument('--zenith-max', type=float, default=180.)
     p.add_argument('--band', choices=BANDS, default='VIS')
     p.add_argument('--model', choices=['combined','glow'], default='combined')
     p.add_argument('--nside', type=int, default=128)

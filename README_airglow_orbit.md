@@ -38,7 +38,7 @@ Web Worker에서 시선을 적분하며 계산을 중지할 수 있습니다. Py
 
 천정각 θ는 위성의 지구 중심 반대 방향(천정)에서 잽니다.
 0°는 천정, 90°는 수평, 180°는 지구 중심 방향입니다.
-`zenith_min <= θ <= zenith_max`인 모든 방위각을 계산합니다. 기본은 0-90°입니다.
+`zenith_min <= θ <= zenith_max`인 모든 방위각을 계산합니다. 기본은 0-180°이며 지구 차폐와 태양·달 회피를 적용합니다.
 특정 천정각 주변의 띠는 예를 들어 59-61°로 지정합니다. HEALPix 픽셀 중심을
 사용하므로 폭이 너무 좁거나 최소=최대이면 픽셀이 없을 수 있습니다.
 최대각을 90°보다 크게 하면 하향 시선도 포함되며 지구 표면에 가려지지 않는 한
@@ -83,10 +83,10 @@ R=6371 km, mu=398600.4418 km³/s²이며 H=650 km의 주기는 약 97.58분입�
 ## CLI와 Python API
 
 ```sh
-# Dawn-dusk, 선택 UTC의 북쪽 위상, 천정각 0-90°, 기본 태양·달 회피
+# Dawn-dusk, 선택 UTC의 북쪽 위상, 천정각 0-180°, 기본 태양·달 회피
 python3 airglow_orbit.py --date 2026-10-17T00:00:00Z \
   --orbit dawn-dusk --height 650 --phase 0 --band VIS --nside 128 \
-  --zenith-max 90 --fits airglow_VIS_nside128_20261017_dawn-dusk.fits.gz \
+  --zenith-max 180 --fits airglow_VIS_nside128_20261017_dawn-dusk.fits.gz \
   --png airglow_VIS_nside128_20261017_dawn-dusk.png
 
 # Noon-midnight 자정, 천정각 0-120°; PDF 또는 --show로 화면 표시 가능

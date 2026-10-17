@@ -79,7 +79,7 @@ export function referenceDirection(v,state){return state.axes.map(a=>a.reduce((s
 export function visibility(v,state,r,moon){
  const dot=(a,b)=>a.reduce((s,x,j)=>s+x*b[j],0);
  const theta=Math.acos(clamp(dot(v,state.zenith),-1,1))/D;
- return {theta,view:theta>=(r.zenithMin??0)-1e-9&&theta<=(r.zenithMax??90)+1e-9&&
+ return {theta,view:theta>=(r.zenithMin??0)-1e-9&&theta<=(r.zenithMax??180)+1e-9&&
  (!r.anti||dot(v,state.sun)<=Math.cos(r.elongation*D)+1e-12)&&
  (!r.moonAvoid||dot(v,moon)<=Math.cos(r.moonAngle*D)+1e-12)};
 }
