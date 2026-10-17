@@ -35,7 +35,7 @@ class Viewer:
         entry(f,'height','H (km)','650',width=7); entry(f,'orbital_phase_deg','북쪽 기준 궤도 위상 φ (°)','0',width=7)
         entry(f,'band','Band','VIS',BANDS,6); entry(f,'model','Model','combined',('combined','glow'),10)
         entry(f,'nside','NSIDE','128',('16','32','64','128'),5)
-        f=row(); entry(f,'zenith_min','Min zenith (deg)','0',width=6); entry(f,'zenith_max','Max zenith (deg)','180',width=6)
+        f=row()
         entry(f,'min_elv_deg','Min ELV (deg)','0.0',width=6)
         self.evolve=tk.BooleanVar(value=False)
         ttk.Checkbutton(f,text='Evolve phase from epoch',variable=self.evolve).pack(side='left',padx=5)
@@ -72,7 +72,7 @@ class Viewer:
     def update(self):
         if self.busy:return
         try:
-            v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','zenith_min','zenith_max','min_elv_deg','sun_separation','moon_separation']}
+            v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','min_elv_deg','sun_separation','moon_separation']}
             settings.update(kind='total' if v['kind']=='Zodiacal + DGL + Airglow' else 'airglow',orbit=v['orbit'],band=v['band'],model=v['model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None)
             utc_time(v['date']); nside=int(v['nside'])
         except ValueError as exc: messagebox.showerror('Input',str(exc)); return
@@ -107,7 +107,7 @@ class Viewer:
     def save(self,kind):
         if self.result is None:return
         r=self.result;stamp=r['utc'].replace('-','').replace(':','').replace('T','_').rstrip('Z')
-        name=f"{r['kind']}_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_z{r['zenith_min']:g}-{r['zenith_max']:g}_elv{r['min_elv_deg']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
+        name=f"{r['kind']}_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_elv{r['min_elv_deg']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
         path=filedialog.asksaveasfilename(defaultextension='.'+kind,initialfile=name+'.'+kind)
         if path:
             if kind=='fits.gz':self.sky.save_fits(r,path)

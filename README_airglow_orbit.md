@@ -17,7 +17,7 @@ python3 airglow_orbit.py --gui
 `python3 airglow_orbit_gui.py`도 같은 창을 엽니다. 원본 계산 코드를 포함한 개발 폴더에서는
 `python3 airglow_gui.py`도 새 뷰어를 엽니다. 그 폴더의 이전 H/SZA 기준 뷰어는
 `python3 airglow_gui.py --reference`로 실행합니다. GitHub 배포에는 새 뷰어만 포함합니다.
-GUI는 현재 UTC로 시작합니다. Orbit, UTC, H, 북쪽 기준 위상 φ, band, 천정각 범위를 선택하고
+GUI는 현재 UTC로 시작합니다. Orbit, UTC, H, 북쪽 기준 위상 φ, band, 최소 ELV를 선택하고
 Calculate map을 누릅니다. contour는 0.1-1.0 mag, 기본 0.5 mag입니다.
 Tkinter와 그래픽 데스크톱이 필요합니다. `python3 -m tkinter`로 확인하고,
 Tkinter가 없다면 Python 배포판에 맞는 Tcl/Tk 패키지를 설치합니다.
@@ -38,11 +38,10 @@ Web Worker에서 시선을 적분하며 계산을 중지할 수 있습니다. Py
 
 천정각 θ는 위성의 지구 중심 반대 방향(천정)에서 잽니다.
 0°는 천정, 90°는 수평, 180°는 지구 중심 방향입니다.
-`zenith_min <= θ <= zenith_max`인 모든 방위각을 계산합니다. 기본은 0-180°이며 지구 차폐와 태양·달 회피를 적용합니다.
-특정 천정각 주변의 띠는 예를 들어 59-61°로 지정합니다. HEALPix 픽셀 중심을
-사용하므로 폭이 너무 좁거나 최소=최대이면 픽셀이 없을 수 있습니다.
-최대각을 90°보다 크게 하면 하향 시선도 포함되며 지구 표면에 가려지지 않는 한
-위성보다 낮은 대기를 통과하는 경로도 적분합니다.
+천정각은 포인터와 FITS의 참고 정보로 표시하며 최소·최대 천정각 입력과 필터는
+사용하지 않습니다. 모든 시선에서 최소 ELV, 태양·달 회피, 지구 차폐 조건으로
+관측 영역을 정합니다. 지구에 가리지 않는 하향 시선은 위성보다 낮은 대기를
+통과하는 경로도 적분합니다.
 
 **기본 관측 조건은 Sun separation >= 90°, Moon separation >= 60°, ELV >= 0°입니다.**
 ELV(Earth limb elevation)는 구형 지구 표면의 가장자리보다 시선이 얼마나
@@ -51,14 +50,14 @@ ELV(Earth limb elevation)는 구형 지구 표면의 가장자리보다 시선�
 고도 650 km에서는 약 `ELV = 114.85° - θ`입니다.
 GUI/웹의 **최소 ELV**를 조절하며 CLI는 `--min-elv 10`, Python API는
 `min_elv_deg=10`처럼 지정합니다. 기본값은 0.0°이고 -90~180° 범위에서
-입력합니다. 다른 회피 조건 및 천정각 조건과 동시에 적용합니다.
+입력합니다. 태양·달 회피 조건과 동시에 적용합니다.
 음수를 지정해도 지구에 가려진 방향의 밝기는 계산하지 않습니다.
 ELV >= 0°가 모델의 모든 대기층을 피한다는 뜻은 아닙니다.
-최소 ELV 경계는 녹색 점선, 천정각 경계는 파란색 점선이며 포인터에 ELV도 표시합니다.
+최소 ELV 경계는 녹색 점선이며 포인터에 ELV와 천정각을 표시합니다.
 
 Python과 웹 모두 태양·달을 표시하고 태양 경계는 빨간 점선, 달 경계는 주황 점선으로
-그립니다. 회피각은 변경하거나 해제할 수 있습니다. 천정과 천정각 경계는 파란색입니다.
-회피·ELV·천정각 조건 밖은 밝은 무채색, 지구 차폐는 회색, 모델 범위 밖/광전자
+그립니다. 회피각은 변경하거나 해제할 수 있습니다. 천정 위치는 파란색입니다.
+회피·ELV 조건 밖은 밝은 무채색, 지구 차폐는 회색, 모델 범위 밖/광전자
 cutoff는 빗금입니다. 빗금 영역의 밝기는 부분적인 계산 결과입니다.
 
 ## 날짜만으로 정해지지 않는 궤도상 위치
@@ -79,8 +78,7 @@ cutoff는 빗금입니다. 빗금 영역의 밝기는 부분적인 계산 결과
 이전 코드의 진행 방향을 유지합니다. 이전 noon-midnight의 u와는
 `φ = (u - 90°) mod 360°` 관계이고, dawn-dusk에서는 이전 u와 같습니다.
 **위상 기본값은 두 궤도 모두 북쪽인 0°**입니다. Noon-midnight의 야간 중심은
-φ=90°를 선택합니다. 정오인 φ=270°에서는 천정각을 0-90°로 제한하고
-태양 회피 90°를 동시에 적용하면 관측 영역이 거의 없을 수 있습니다.
+φ=90°를 선택합니다. 정오인 φ=270°에서는 태양 회피와 ELV 하한에 따라 관측 영역이 제한됩니다.
 
 기본적으로 선택한 위상은 날짜를 바꿔도 유지합니다. 위성의 위치를 시간에 따라
 이동시키려면 웹/GUI의 **기준 UTC부터 위상 자동 진행**을 선택하거나 CLI에
@@ -103,16 +101,16 @@ R=6371 km, mu=398600.4418 km³/s²이며 H=650 km의 주기는 약 97.58분입�
 ## CLI와 Python API
 
 ```sh
-# Dawn-dusk, 선택 UTC의 북쪽 위상, 천정각 0-180°, 기본 태양·달 회피
+# Dawn-dusk, 선택 UTC의 북쪽 위상, 기본 ELV 및 태양·달 회피
 python3 airglow_orbit.py --date 2026-10-17T00:00:00Z \
   --orbit dawn-dusk --height 650 --orbital-phase-deg 0 --band VIS --nside 128 \
-  --zenith-max 180 --fits airglow_VIS_nside128_20261017_dawn-dusk.fits.gz \
+  --fits airglow_VIS_nside128_20261017_dawn-dusk.fits.gz \
   --png airglow_VIS_nside128_20261017_dawn-dusk.png
 
-# Noon-midnight 자정, 천정각 0-120°; PDF 또는 --show로 화면 표시 가능
+# Noon-midnight 자정; PDF 또는 --show로 화면 표시 가능
 python3 airglow_orbit.py --date 2026-10-17T00:00:00Z \
   --orbit noon-midnight --orbital-phase-deg 90 --height 650 --band UV3 \
-  --zenith-max 120 --pdf airglow_UV3_nside128_20261017_noon-midnight.pdf
+  --pdf airglow_UV3_nside128_20261017_noon-midnight.pdf
 
 # 기준 위상부터 시간 진행, 단일 RA/DEC 질의
 python3 airglow_orbit.py --date 2026-10-17T00:10:00Z \
@@ -129,8 +127,7 @@ python3 airglow_orbit.py --date 2026-10-17T00:10:00Z \
 from airglow_orbit import AirglowOrbitModel
 sky = AirglowOrbitModel()
 r = sky.sky_map('2026-10-17T00:00:00Z', orbit='noon-midnight',
-                orbital_phase_deg=90, height=650, band='VIS', nside=128,
-                zenith_min=0, zenith_max=120)
+                orbital_phase_deg=90, height=650, band='VIS', nside=128, min_elv_deg=0)
 fig = sky.plot(r, contour_step=0.5)
 fig.savefig('map.pdf')
 sky.save_fits(r, 'map.fits.gz')
@@ -139,9 +136,9 @@ sky.save_fits(r, 'map.fits.gz')
 출력 FITS.gz는 RING/적도 HEALPix이며 AB_MAG_ARCSEC2, PHOTON_RADIANCE,
 SUNLIT_RADIANCE, EARTH_OCCULTED, MODEL_VALID, MIN_ALTITUDE, PHOTO_CUTOFF,
 ZENITH_ANGLE, VIEW_ALLOWED, ELV(deg)를 저장합니다. 제외 영역의 밝기는 NaN입니다.
-VIEW_ALLOWED는 천정각·최소 ELV·태양·달 회피를 판정하고, 지구 차폐와 모델 유효성은
+VIEW_ALLOWED는 최소 ELV·태양·달 회피를 판정하고, 지구 차폐와 모델 유효성은
 별도 열을 봅니다. 제외 방향은 적분을 생략하므로 다른 진단 열은 유효하지 않습니다.
-UTC, 궤도 종류, 위상/기준 UTC, 고도, 위성 SZA, 회피각, 천정각 범위, 최소 ELV(ELVMIN),
+UTC, 궤도 종류, 위상/기준 UTC, 고도, 위성 SZA, 회피각, 최소 ELV(ELVMIN),
 태양·달·천정의 RA/DEC, 발광률 표 SHA-256 등을 헤더에 기록합니다.
 위상 기준은 `PHREF=NORTH`, 정의 버전은 `PHCONV=NORTH_V1`로 명시합니다.
 파일명에서는 궤도 위상을 `_phi...`로 표시합니다.
@@ -163,7 +160,7 @@ PALACE 야간층의 전 지구 적용 가정도 유지됩니다. 달 위치는 �
 ## Zodiacal light + DGL + Airglow 합산
 
 웹 모델 목록에서 **Zodiacal light + DGL + Airglow**를 선택하면 Airglow와
-동일한 궤도·위상·고도·천정각·ELV 입력을 사용할 수 있습니다. Python GUI에서는
+동일한 궤도·위상·고도·ELV 입력을 사용할 수 있습니다. Python GUI에서는
 Map을 **Zodiacal + DGL + Airglow**로 선택하거나 다음과 같이 합산 모드로 시작합니다.
 
 ```sh
@@ -185,7 +182,7 @@ constant photon-counting throughput 가정과 기존 Airglow AB 정의를 사용
 등급 자체를 더하지 않습니다. Zodiacal은 날짜에 따라 회전하고 DGL은 RA/DEC에
 고정되며, Airglow는 선택한 궤도의 시선을 따라 적분합니다.
 
-세 성분 모두 동일한 Sun/Moon avoidance, 천정각, 최소 ELV, 지구 차폐를 적용합니다.
+세 성분 모두 동일한 Sun/Moon avoidance, 최소 ELV, 지구 차폐를 적용합니다.
 Airglow 모델이 불완전한 방향은 합산 지도에도 빗금으로 표시합니다.
 총합 FITS의 두 번째 열은 `INTENSITY_MJY_SR`이고 별도로
 `ZODIACAL_MJY_SR`, `DGL_MJY_SR`, `AIRGLOW_MJY_SR`,
