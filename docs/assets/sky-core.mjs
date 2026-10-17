@@ -1,5 +1,5 @@
-// S-DRIFT browser routines, modified 2026-10-08. GLOW-derived integration:
-// This software is part of the GLOW model. Use is governed by the Open Source
+// S-DRIFT browser routines, modified 2026-10-17. GLOW-derived integration:
+// This software is based on calculations using the GLOW model, governed by the Open Source
 // Academic Research License Agreement contained in data/glowlicense.txt.
 export const R=6371, D=Math.PI/180, ARC=206264.80624709636;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -60,6 +60,30 @@ export function solarAt(unix,data,meta){
 }
 export function abZodi(value){return value>0?-2.5*Math.log10(value*1e6/ARC**2/3631):Infinity;}
 export function abAir(value,band){return value>0?-2.5*Math.log10(6.62607015e-27*value/(Math.log(band[1]/band[0])*ARC**2)/(3631e-23)):Infinity;}
+
+// Ideal solar-following circles for initial design; not an SGP4/J2 propagator.
+export function orbitState(sun,H,orbit='dawn-dusk',phase=0,unix=0,epoch=null){
+ if(!['dawn-dusk','noon-midnight'].includes(orbit))throw Error('Unknown orbit');
+ if(!Number.isFinite(H)||H<=0||H>=1500||!Number.isFinite(phase))throw Error('Invalid orbit input');
+ const dot=(a,b)=>a.reduce((v,x,j)=>v+x*b[j],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>{const n=Math.hypot(...a);return a.map(x=>x/n);};
+ const s=unit(sun),k=Math.abs(s[2])<.999999?[0,0,1]:[1,0,0];
+ const north=unit(k.map((x,j)=>x-dot(k,s)*s[j])),east=cross(s,north);
+ const period=2*Math.PI*Math.sqrt((R+H)**3/398600.4418);
+ const u=mod(phase+(epoch===null?0:(unix-epoch)*360/period),360),a=u*D;
+ const zenith=unit(s.map((x,j)=>orbit==='dawn-dusk'?Math.cos(a)*north[j]+Math.sin(a)*east[j]:Math.cos(a)*x+Math.sin(a)*north[j]));
+ let c=clamp(dot(zenith,s),-1,1);if(Math.abs(Math.abs(c)-1)<1e-14)c=Math.sign(c);const sz=Math.acos(c)/D;
+ const proj=zenith.map((x,j)=>x-c*s[j]),z=Math.hypot(...proj)>1e-10?unit(proj):north;
+ return {sun:s,zenith,sza:sz,phase:u,period,axes:[s,cross(z,s),z]};
+}
+export function referenceDirection(v,state){return state.axes.map(a=>a.reduce((s,x,j)=>s+x*v[j],0));}
+export function visibility(v,state,r,moon){
+ const dot=(a,b)=>a.reduce((s,x,j)=>s+x*b[j],0);
+ const theta=Math.acos(clamp(dot(v,state.zenith),-1,1))/D;
+ return {theta,view:theta>=(r.zenithMin??0)-1e-9&&theta<=(r.zenithMax??90)+1e-9&&
+ (!r.anti||dot(v,state.sun)<=Math.cos(r.elongation*D)+1e-12)&&
+ (!r.moonAvoid||dot(v,moon)<=Math.cos(r.moonAngle*D)+1e-12)};
+}
+
 export function geometry(H,sza,v,top){
   const c=Math.cos(sza*D),s=Math.sin(sza*D),rr=R+H,b=rr*(c*v[0]+s*v[2]);
   const occulted=b<0&&b*b-rr*rr+R*R>=0,hmin=occulted?0:Math.sqrt(Math.max(rr*rr-Math.min(b,0)**2,0))-R;
@@ -99,19 +123,21 @@ export function moll(ra,dec){
 // FITS uses big-endian IEEE floats and 2880-byte blocks. All sky exports are
 // single-pixel-per-row RING HEALPix BINTABLEs, independently checked by Astropy.
 function card(key,val){
-  let text=key.padEnd(8)+'= '+(typeof val==='string'?"'"+val.replaceAll("'","''")+"'":typeof val==='boolean'?(val?'T':'F').padStart(20):String(val).padStart(20));
+  let text=key.padEnd(8)+'= '+(typeof val==='string'?"'"+val.replaceAll("'","''")+"'":typeof val==='boolean'?(val?'T':'F').padStart(20):String(val).toUpperCase().padStart(20));
   return text.padEnd(80).slice(0,80);
 }
 function header(rows){const text=[...rows.map(([k,v])=>card(k,v)),'END'.padEnd(80)].join('');return new TextEncoder().encode(text.padEnd(Math.ceil(text.length/2880)*2880));}
 export function fitsMap(result,request,manifest){
   const n=result.flux.length,air=request.kind==='airglow',hasDgl=['dgl','zodiacal_dgl'].includes(request.kind),hasZodi=['zodiacal','zodiacal_dgl'].includes(request.kind);
-  const names=air?['AB_MAG_ARCSEC2','PHOTON_RADIANCE','SUNLIT_RADIANCE','EARTH_OCCULTED','MODEL_VALID','MIN_ALTITUDE','PHOTO_CUTOFF']:['AB_MAG_ARCSEC2','INTENSITY_MJY_SR'];
+  const names=air?['AB_MAG_ARCSEC2','PHOTON_RADIANCE','SUNLIT_RADIANCE','EARTH_OCCULTED','MODEL_VALID','MIN_ALTITUDE','PHOTO_CUTOFF','ZENITH_ANGLE','VIEW_ALLOWED']:['AB_MAG_ARCSEC2','INTENSITY_MJY_SR'];
   if(request.kind==='zodiacal_dgl')names.push('ZODIACAL_MJY_SR','DGL_MJY_SR');
   const primary=header([['SIMPLE',true],['BITPIX',8],['NAXIS',0],['EXTEND',true]]);
   const rows=[['XTENSION','BINTABLE'],['BITPIX',8],['NAXIS',2],['NAXIS1',names.length*4],['NAXIS2',n],['PCOUNT',0],['GCOUNT',1],['TFIELDS',names.length],['PIXTYPE','HEALPIX'],['ORDERING','RING'],['NSIDE',request.nside],['FIRSTPIX',0],['LASTPIX',n-1],['INDXSCHM','IMPLICIT'],['COORDSYS','C'],['BAND',request.band],['WEBVER',2],['CREATOR','S-DRIFT HTML'],['DATATYPE',request.kind.toUpperCase()],['BANDMIN',manifest.bands[request.band][0]/1000],['BANDMAX',manifest.bands[request.band][1]/1000],['PHOTCNT',true]];
   names.forEach((name,i)=>{rows.push(['TTYPE'+(i+1),name],['TFORM'+(i+1),'1E']);});
   rows.push(['TUNIT1','mag/arcsec2'],['TUNIT2',air?'photons/s/cm2/sr':'MJy/sr']);
-  if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km']);}
+  if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['DATE-UTC',request.utc.replace('Z','')],['ORBIT',request.orbit],['ORBMODEL','IDEAL SOLAR CIRCLE'],['PHASE',result.state.phase],['PHASE0',request.phase],['PHMODE',request.evolve?'EPOCH':'MANUAL'],['EPOCH',request.epoch],['PERIOD',result.state.period],['ZENMIN',request.zenithMin],['ZENMAX',request.zenithMax],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','GEOCENTRIC']);
+    for(const [v,prefix]of [[result.sun,'SUN'],[result.moon,'MOON'],[result.state.zenith,'ZEN']])if(v)rows.push([prefix+'RA',mod(Math.atan2(v[1],v[0])/D,360)],[prefix+'DEC',Math.asin(clamp(v[2],-1,1))/D]);
+  }
   else{
     rows.push(['DATE-UTC',request.utc.replace('Z','')],['ANTISUN',request.anti],['ELONGMIN',request.elongation]);
     if(result.sun)rows.push(['SUNRA',mod(Math.atan2(result.sun[1],result.sun[0])/D,360)],['SUNDEC',Math.asin(result.sun[2])/D]);
@@ -123,7 +149,7 @@ export function fitsMap(result,request,manifest){
   const ext=header(rows),dataBytes=n*names.length*4,out=new Uint8Array(primary.length+ext.length+Math.ceil(dataBytes/2880)*2880);
   out.set(primary);out.set(ext,primary.length);const view=new DataView(out.buffer,primary.length+ext.length);
   for(let i=0;i<n;i++){
-    const vals=air?[result.mag[i],result.flux[i],result.lit[i],result.earth[i],result.valid[i],result.hmin[i],result.cutoff[i]]:[result.mag[i],result.flux[i]];
+    const vals=air?[result.mag[i],result.flux[i],result.lit[i],result.earth[i],result.valid[i],result.hmin[i],result.cutoff[i],result.theta[i],result.view[i]]:[result.mag[i],result.flux[i]];
     if(request.kind==='zodiacal_dgl')vals.push(result.zodiacal[i],result.dgl[i]);
     for(let j=0;j<vals.length;j++)view.setFloat32((i*vals.length+j)*4,vals[j],false);
   }

@@ -156,3 +156,12 @@ Use of the GLOW model is governed by the Open Source Academic Research License
 Agreement contained in [glowlicense.txt](docs/data/glowlicense.txt).
 Browser routines modified 2026-10-08.
 
+
+## 두 이상적 궤도의 airglow 지도
+
+Airglow 모드에서 dawn-dusk / noon-midnight, UTC, 고도, 위상, 천정각 범위를
+선택합니다. 두 궤도 모두 태양·달 위치와 경계를 표시하며 기본 Sun/Moon separation은
+90°/60°입니다. Python GUI는 `python3 airglow_orbit.py --gui`로 실행합니다.
+FITS.gz, PDF, PNG 저장과 CLI 계산도 지원합니다.
+자세한 기하, 위상 자동 진행, 실행 예제와 제한은
+[README_airglow_orbit.md](README_airglow_orbit.md)를 참조하십시오.

@@ -5,3 +5,10 @@ numpy>=1.23
 healpy>=1.16
 astropy>=5
 matplotlib>=3.6
+
+# Airglow orbit GUI: tkinter + matching Tcl/Tk and a graphical desktop.
+# Check: python3 -m tkinter. tkinter is supplied by the Python distributor,
+# not pip. On Homebrew install python-tk matching your Python version.
+# Optional parallel airglow integration: install a Numba release compatible
+# with your Python and NumPy. Without it, the NumPy integrator is used.
+# numba
