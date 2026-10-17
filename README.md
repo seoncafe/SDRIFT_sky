@@ -165,3 +165,8 @@ Airglow 모드에서 dawn-dusk / noon-midnight, UTC, 고도, 위상, 천정각 �
 FITS.gz, PDF, PNG 저장과 CLI 계산도 지원합니다.
 자세한 기하, 위상 자동 진행, 실행 예제와 제한은
 [README_airglow_orbit.md](README_airglow_orbit.md)를 참조하십시오.
+
+Zodiacal light + DGL + Airglow 합산 모드는 세 성분의 intensity를 더하며
+Airglow와 동일한 궤도·각도·ELV 및 태양·달 회피 조건을 사용합니다.
+웹 모델 목록에서 선택하거나 `python3 airglow_orbit.py --gui --kind total`로
+실행하십시오. [사용법](README_airglow_orbit.md#zodiacal-light--dgl--airglow-합산).

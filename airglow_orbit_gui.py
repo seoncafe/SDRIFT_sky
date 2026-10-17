@@ -12,10 +12,10 @@ from airglow_orbit import AirglowOrbitModel, ORBIT_TYPES, BANDS, DEFAULT_DATA, u
 
 
 class Viewer:
-    def __init__(self, root, data_dir=DEFAULT_DATA):
+    def __init__(self, root, data_dir=DEFAULT_DATA, kind='airglow'):
         self.root=root; self.sky=AirglowOrbitModel(data_dir); self.result=None; self.busy=False
         self.messages=queue.Queue(); self.vars={}
-        root.title('S-DRIFT | ideal orbit airglow'); root.geometry('1380x1000')
+        root.title('S-DRIFT | orbit sky background'); root.geometry('1380x1000')
         controls=ttk.Frame(root,padding=10); controls.pack(fill='x')
         def row():
             f=ttk.Frame(controls); f.pack(fill='x',pady=4); return f
@@ -30,6 +30,7 @@ class Viewer:
         ttk.Button(f,text='Now',command=self.now).pack(side='left',padx=4)
         for text,sec in [('-1 h',-3600),('-1 min',-60),('+1 min',60),('+1 h',3600)]:
             ttk.Button(f,text=text,command=lambda n=sec:self.shift(n)).pack(side='left',padx=3)
+        f=row(); entry(f,'kind','Map','Zodiacal + DGL + Airglow' if kind=='total' else 'Airglow',('Airglow','Zodiacal + DGL + Airglow'),28)
         f=row(); entry(f,'orbit','Orbit','dawn-dusk',ORBIT_TYPES,16)
         entry(f,'height','H (km)','650',width=7); entry(f,'orbital_phase_deg','북쪽 기준 궤도 위상 φ (°)','0',width=7)
         entry(f,'band','Band','VIS',BANDS,6); entry(f,'model','Model','combined',('combined','glow'),10)
@@ -72,7 +73,7 @@ class Viewer:
         if self.busy:return
         try:
             v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','zenith_min','zenith_max','min_elv_deg','sun_separation','moon_separation']}
-            settings.update(orbit=v['orbit'],band=v['band'],model=v['model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None)
+            settings.update(kind='total' if v['kind']=='Zodiacal + DGL + Airglow' else 'airglow',orbit=v['orbit'],band=v['band'],model=v['model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None)
             utc_time(v['date']); nside=int(v['nside'])
         except ValueError as exc: messagebox.showerror('Input',str(exc)); return
         self.busy=True; self.button.configure(state='disabled'); self.status.set('Calculating… (first Numba compilation may take several seconds)')
@@ -106,7 +107,7 @@ class Viewer:
     def save(self,kind):
         if self.result is None:return
         r=self.result;stamp=r['utc'].replace('-','').replace(':','').replace('T','_').rstrip('Z')
-        name=f"airglow_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_z{r['zenith_min']:g}-{r['zenith_max']:g}_elv{r['min_elv_deg']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
+        name=f"{r['kind']}_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_z{r['zenith_min']:g}-{r['zenith_max']:g}_elv{r['min_elv_deg']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
         path=filedialog.asksaveasfilename(defaultextension='.'+kind,initialfile=name+'.'+kind)
         if path:
             if kind=='fits.gz':self.sky.save_fits(r,path)
@@ -114,7 +115,7 @@ class Viewer:
             self.status.set('Saved '+path)
 
 
-def main(data_dir=DEFAULT_DATA):
-    root=tk.Tk();Viewer(root,data_dir);root.mainloop()
+def main(data_dir=DEFAULT_DATA, kind='airglow'):
+    root=tk.Tk();Viewer(root,data_dir,kind=kind);root.mainloop()
 
 if __name__=='__main__':main()

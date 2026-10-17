@@ -59,6 +59,7 @@ export function solarAt(unix,data,meta){
   return v.map(x=>x/norm);
 }
 export function abZodi(value){return value>0?-2.5*Math.log10(value*1e6/ARC**2/3631):Infinity;}
+export function airglowMjy(value,band){return 6.62607015e-10*value/Math.log(band[1]/band[0]);}
 export function abAir(value,band){return value>0?-2.5*Math.log10(6.62607015e-27*value/(Math.log(band[1]/band[0])*ARC**2)/(3631e-23)):Infinity;}
 
 // Ideal solar-following circles for initial design; not an SGP4/J2 propagator.
@@ -129,13 +130,14 @@ function card(key,val){
 }
 function header(rows){const text=[...rows.map(([k,v])=>card(k,v)),'END'.padEnd(80)].join('');return new TextEncoder().encode(text.padEnd(Math.ceil(text.length/2880)*2880));}
 export function fitsMap(result,request,manifest){
-  const n=result.flux.length,air=request.kind==='airglow',hasDgl=['dgl','zodiacal_dgl'].includes(request.kind),hasZodi=['zodiacal','zodiacal_dgl'].includes(request.kind);
+  const n=result.flux.length,air=['airglow','total'].includes(request.kind),total=request.kind==='total',hasDgl=['dgl','zodiacal_dgl'].includes(request.kind),hasZodi=['zodiacal','zodiacal_dgl'].includes(request.kind);
   const names=air?['AB_MAG_ARCSEC2','PHOTON_RADIANCE','SUNLIT_RADIANCE','EARTH_OCCULTED','MODEL_VALID','MIN_ALTITUDE','PHOTO_CUTOFF','ZENITH_ANGLE','VIEW_ALLOWED','ELV']:['AB_MAG_ARCSEC2','INTENSITY_MJY_SR'];
   if(request.kind==='zodiacal_dgl')names.push('ZODIACAL_MJY_SR','DGL_MJY_SR');
+  if(total){names[1]='INTENSITY_MJY_SR';names.push('ZODIACAL_MJY_SR','DGL_MJY_SR','AIRGLOW_MJY_SR','AIRGLOW_PHOTON_RADIANCE');}
   const primary=header([['SIMPLE',true],['BITPIX',8],['NAXIS',0],['EXTEND',true]]);
   const rows=[['XTENSION','BINTABLE'],['BITPIX',8],['NAXIS',2],['NAXIS1',names.length*4],['NAXIS2',n],['PCOUNT',0],['GCOUNT',1],['TFIELDS',names.length],['PIXTYPE','HEALPIX'],['ORDERING','RING'],['NSIDE',request.nside],['FIRSTPIX',0],['LASTPIX',n-1],['INDXSCHM','IMPLICIT'],['COORDSYS','C'],['BAND',request.band],['WEBVER',2],['CREATOR','S-DRIFT HTML'],['DATATYPE',request.kind.toUpperCase()],['BANDMIN',manifest.bands[request.band][0]/1000],['BANDMAX',manifest.bands[request.band][1]/1000],['PHOTCNT',true]];
   names.forEach((name,i)=>{rows.push(['TTYPE'+(i+1),name],['TFORM'+(i+1),'1E']);});
-  rows.push(['TUNIT1','mag/arcsec2'],['TUNIT2',air?'photons/s/cm2/sr':'MJy/sr']);
+  rows.push(['TUNIT1','mag/arcsec2'],['TUNIT2',air&&!total?'photons/s/cm2/sr':'MJy/sr']);
   if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['TUNIT10','deg'],['ELVMIN',request.minElvDeg??0],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],['DATE-UTC',request.utc.replace('Z','')],['ORBIT',request.orbit],['ORBMODEL','IDEAL SOLAR CIRCLE'],['PHASE',result.state.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V1'],['PHASE0',request.orbitalPhaseDeg],['PHMODE',request.evolve?'EPOCH':'MANUAL'],['EPOCH',request.epoch],['PERIOD',result.state.period],['ZENMIN',request.zenithMin],['ZENMAX',request.zenithMax],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','GEOCENTRIC']);
     for(const [v,prefix]of [[result.sun,'SUN'],[result.moon,'MOON'],[result.state.zenith,'ZEN']])if(v)rows.push([prefix+'RA',mod(Math.atan2(v[1],v[0])/D,360)],[prefix+'DEC',Math.asin(clamp(v[2],-1,1))/D]);
   }
@@ -147,11 +149,19 @@ export function fitsMap(result,request,manifest){
     if(hasDgl){const m=manifest.dgl;rows.push(['CORRMOD','C2022_all'],['CORRSCL',m.metadata.scale],['CORRMIN',m.metadata.correlation_min_nm],['UVEXT','CONSTANT'],['BETAOP','MULTIPLY'],['ALPHAPP',m.metadata.alpha_approximation],['BETAREF',m.metadata.beta_reference],['DGLFIXED',true],['DGL_SHA',m.bands[request.band].source_sha256]);}
     if(request.kind==='zodiacal_dgl')rows.push(['TUNIT3','MJy/sr'],['TUNIT4','MJy/sr']);
   }
+  if(total){
+    const m=manifest.dgl;
+    rows.push(['TUNIT11','MJy/sr'],['TUNIT12','MJy/sr'],['TUNIT13','MJy/sr'],['TUNIT14','photons/s/cm2/sr'],
+      ['REF-UTC',manifest.solar.reference_utc],['ROT-DEG',result.delta/D],['SRC_SHA',manifest.zodiacal[request.band].source_sha256],
+      ['DGL_SHA',m.bands[request.band].source_sha256],['CORRMOD','C2022_all'],['CORRSCL',m.metadata.scale],['BETAOP','MULTIPLY'],
+      ['ALPHAPP',m.metadata.alpha_approximation],['BETAREF',m.metadata.beta_reference],['DGLFIXED',true]);
+  }
   const ext=header(rows),dataBytes=n*names.length*4,out=new Uint8Array(primary.length+ext.length+Math.ceil(dataBytes/2880)*2880);
   out.set(primary);out.set(ext,primary.length);const view=new DataView(out.buffer,primary.length+ext.length);
   for(let i=0;i<n;i++){
     const vals=air?[result.mag[i],result.flux[i],result.lit[i],result.earth[i],result.valid[i],result.hmin[i],result.cutoff[i],result.theta[i],result.view[i],result.elv[i]]:[result.mag[i],result.flux[i]];
     if(request.kind==='zodiacal_dgl')vals.push(result.zodiacal[i],result.dgl[i]);
+    if(total)vals.push(result.zodiacal[i],result.dgl[i],result.airglow[i],result.airglowPhoton[i]);
     for(let j=0;j<vals.length;j++)view.setFloat32((i*vals.length+j)*4,vals[j],false);
   }
   return out;

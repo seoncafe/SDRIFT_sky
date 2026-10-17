@@ -1,5 +1,5 @@
 // Modified 2026-10-17. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,D,mod} from './sky-core.mjs?v=elv-sky-1';
+import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,airglowMjy,D,mod} from './sky-core.mjs?v=total-sky-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -12,10 +12,11 @@ async function array(meta){
 }
 self.onmessage=async({data:{request:r,manifest:m}})=>{try{
  const np=12*r.nside*r.nside,result={flux:new Float32Array(np),mag:new Float32Array(np)};
- let q,info,sun,delta,dgl,moon,state;
+ const air=['airglow','total'].includes(r.kind),total=r.kind==='total';
+ let q,info,sun,delta,dgl,moon,state,zodi;
  sun=solarAt(Date.parse(r.utc)/1000,await array(m.solar),m.solar);result.sun=sun;
  moon=solarAt(Date.parse(r.utc)/1000,await array(m.lunar),m.lunar);result.moon=moon;
- if(r.kind!=='airglow'){
+ if(!air){
    if(r.kind==='zodiacal'||r.kind==='zodiacal_dgl')q=await array(m.zodiacal[r.band]);
    if(r.kind==='dgl'||r.kind==='zodiacal_dgl')dgl=await array(m.dgl.bands[r.band]);
    sun=solarAt(Date.parse(r.utc)/1000,await array(m.solar),m.solar);
@@ -24,10 +25,15 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
    moon=solarAt(Date.parse(r.utc)/1000,await array(m.lunar),m.lunar);result.moon=moon;
    if(r.kind==='zodiacal_dgl'){result.zodiacal=new Float32Array(np);result.dgl=new Float32Array(np);}
  }else {info=m.airglow[r.model];q=await array(info.bands[r.band]);state=orbitState(sun,r.height,r.orbit,r.orbitalPhaseDeg,Date.parse(r.utc)/1000,r.evolve?Date.parse(r.epoch)/1000:null);result.state=state;for(const key of ['lit','hmin','theta','elv'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff','view'])result[key]=new Uint8Array(np);}
- const {sampleMap}=await import('./sky-core.mjs?v=elv-sky-1');
+ if(total){
+  zodi=await array(m.zodiacal[r.band]);dgl=await array(m.dgl.bands[r.band]);
+  delta=mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI;result.delta=delta;
+  for(const key of ['zodiacal','dgl','airglow','airglowPhoton']){result[key]=new Float32Array(np);result[key].fill(NaN);}
+ }
+ const {sampleMap}=await import('./sky-core.mjs?v=total-sky-1');
  for(let i=0;i<np;i++){
  const v=pixVector(r.nside,i);
- if(r.kind!=='airglow'){
+ if(!air){
  const masked=(r.anti&&v.reduce((s,x,j)=>s+x*sun[j],0)>Math.cos(r.elongation*D))||(moon&&r.moonAvoid&&v.reduce((s,x,j)=>s+x*moon[j],0)>Math.cos(r.moonAngle*D));
  const z=q?sampleMap(q,128,rotation(v,-delta)):0,g=dgl?sampleMap(dgl,128,v):0;
  result.flux[i]=masked?NaN:z+g;result.mag[i]=masked?NaN:abZodi(result.flux[i]);
@@ -35,7 +41,12 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
  }else{
  const mask=visibility(v,state,r,moon);result.theta[i]=mask.theta;result.elv[i]=mask.elv;result.view[i]=mask.view;
  result.flux[i]=NaN;result.mag[i]=NaN;result.lit[i]=NaN;result.hmin[i]=NaN;
- if(mask.view){const a=integrateRay(r.height,state.sza,referenceDirection(v,state),q,info);for(const key of ['flux','lit','hmin','earth','valid','cutoff'])result[key][i]=a[key];result.mag[i]=a.earth?NaN:abAir(a.flux,m.bands[r.band]);}
+ if(mask.view){const a=integrateRay(r.height,state.sza,referenceDirection(v,state),q,info);for(const key of ['flux','lit','hmin','earth','valid','cutoff'])result[key][i]=a[key];result.mag[i]=a.earth?NaN:abAir(a.flux,m.bands[r.band]);
+ if(total&&!a.earth){
+  const z=sampleMap(zodi,128,rotation(v,-delta)),g=sampleMap(dgl,128,v),ag=airglowMjy(a.flux,m.bands[r.band]);
+  result.airglowPhoton[i]=a.flux;result.airglow[i]=ag;result.zodiacal[i]=z;result.dgl[i]=g;
+  result.flux[i]=z+g+ag;result.mag[i]=abZodi(z+g+ag);
+ }}
  }
  if(i%1024===0){self.postMessage({progress:i/np});await new Promise(resolve=>setTimeout(resolve,0));}
  }

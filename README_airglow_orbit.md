@@ -159,3 +159,36 @@ photon-counting throughput입니다. 고도와 **각 적분점의 국소 SZA**�
 PALACE 야간층의 전 지구 적용 가정도 유지됩니다. 달 위치는 기존 웹과 같은
 지구 중심 위치이며 위성 시차와 산란 달빛은 포함하지 않습니다. GLOW 사용 조건은
 `docs/data/glowlicense.txt`를 참조하십시오.
+
+## Zodiacal light + DGL + Airglow 합산
+
+웹 모델 목록에서 **Zodiacal light + DGL + Airglow**를 선택하면 Airglow와
+동일한 궤도·위상·고도·천정각·ELV 입력을 사용할 수 있습니다. Python GUI에서는
+Map을 **Zodiacal + DGL + Airglow**로 선택하거나 다음과 같이 합산 모드로 시작합니다.
+
+```sh
+python3 airglow_orbit.py --gui --kind total
+python3 airglow_orbit.py --kind total --orbit noon-midnight \
+  --orbital-phase-deg 90 --height 650 --date 2026-10-17T00:00:00Z \
+  --band VIS --min-elv 5 --fits total_VIS_nside128_20261017.fits.gz \
+  --png total_VIS_nside128_20261017.png
+```
+
+API에서도 `sky.sky_map(..., kind='total')`로 선택합니다. 기본값 `kind='airglow'`는
+기존 Airglow 단독 모드입니다. `--model combined/glow`는 합산 여부와 별개로
+Airglow의 발광 성분 모델을 선택합니다.
+
+세 성분은 같은 band의 **MJy/sr로 통일하여 합한 뒤** AB mag/arcsec²로 변환합니다.
+광자 radiance I_gamma의 변환은
+`I_airglow[MJy/sr] = 6.62607015e-10 * I_gamma / ln(lambda_max/lambda_min)`이며
+constant photon-counting throughput 가정과 기존 Airglow AB 정의를 사용합니다.
+등급 자체를 더하지 않습니다. Zodiacal은 날짜에 따라 회전하고 DGL은 RA/DEC에
+고정되며, Airglow는 선택한 궤도의 시선을 따라 적분합니다.
+
+세 성분 모두 동일한 Sun/Moon avoidance, 천정각, 최소 ELV, 지구 차폐를 적용합니다.
+Airglow 모델이 불완전한 방향은 합산 지도에도 빗금으로 표시합니다.
+총합 FITS의 두 번째 열은 `INTENSITY_MJY_SR`이고 별도로
+`ZODIACAL_MJY_SR`, `DGL_MJY_SR`, `AIRGLOW_MJY_SR`,
+`AIRGLOW_PHOTON_RADIANCE`를 저장합니다. 모델 유효성 등 기존 진단 열도 유지합니다.
+총합 결과의 API `flux` 단위는 MJy/sr이고 Airglow 단독의 `flux`는 photons/s/cm²/sr입니다.
+`airglow_photon_radiance`에 합산 전 Airglow 광자 radiance도 보관합니다.

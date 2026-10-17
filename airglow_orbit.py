@@ -11,7 +11,7 @@ from pathlib import Path
 import warnings
 import numpy as np
 import healpy as hp
-from sdrift_sky import SkyModel, DEFAULT_DATA, BANDS, utc_time, coordinates, vector, boundary
+from sdrift_sky import SkyModel, DEFAULT_DATA, BANDS, utc_time, coordinates, vector, boundary, ab_magnitude
 
 R = 6371.
 ORBIT_TYPES = ('dawn-dusk', 'noon-midnight')
@@ -122,7 +122,8 @@ def _numpy_kernel(height, sza, directions, q, z, chi, support, step):
 class AirglowOrbitModel(SkyModel):
     def evaluate(self, directions, date, band='VIS', model='combined', height=650., orbit='dawn-dusk', orbital_phase_deg=0.,
                  epoch=None, zenith_min=0., zenith_max=180., sun_avoidance=True, sun_separation=90.,
-                 moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=0.):
+                 moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=0., kind='airglow'):
+        if kind not in ('airglow', 'total'): raise ValueError('Kind must be airglow or total')
         if phase is not None: orbital_phase_deg = phase  # alias; NORTH_V1 convention
         if band not in BANDS or model not in ('glow', 'combined'): raise ValueError('Unknown band/model')
         if not all(np.isfinite(x) for x in (zenith_min, zenith_max, sun_separation, moon_separation, step_km)) or not (0 <= zenith_min <= zenith_max <= 180 and 0 <= sun_separation <= 180 and 0 <= moon_separation <= 180 and step_km > 0):
@@ -150,24 +151,42 @@ class AirglowOrbitModel(SkyModel):
         lo, hi = self.manifest['bands'][band]
         with np.errstate(divide='ignore', invalid='ignore'):
             mag = -2.5*np.log10(6.62607015e-27*a[:, 0]/(np.log(hi/lo)*206264.80624709636**2)/(3631e-23))
-        return dict(flux=a[:, 0], lit=a[:, 1], earth=a[:, 2].astype(bool), valid=a[:, 3].astype(bool),
+        result = dict(flux=a[:, 0], lit=a[:, 1], earth=a[:, 2].astype(bool), valid=a[:, 3].astype(bool),
                     hmin=a[:, 4], cutoff=a[:, 5].astype(bool), theta=theta, elv=elv, view=view, mag=mag, min_elv_deg=min_elv_deg,
                     state=state, sun=sun, moon=moon, utc=utc, band=band, model=model, height=height,
                     orbit=orbit, orbital_phase_deg=orbital_phase_deg, epoch=epoch, zenith_min=zenith_min, zenith_max=zenith_max,
                     sun_avoidance=sun_avoidance, sun_separation=sun_separation,
                     moon_avoidance=moon_avoidance, moon_separation=moon_separation, step_km=step_km,
-                    engine='numba' if function is globals().get('_fast_kernel') else 'numpy')
+                    engine='numba' if function is globals().get('_fast_kernel') else 'numpy', kind=kind)
+        if kind == 'total':
+            background = SkyModel.evaluate(self, v, date, band=band, model='zodiacal_dgl',
+                sun_avoidance=sun_avoidance, sun_separation=sun_separation,
+                moon_avoidance=moon_avoidance, moon_separation=moon_separation)
+            shown = view & ~result['earth']
+            result['airglow_photon_radiance'] = result['flux'].copy()
+            result['airglow'] = 6.62607015e-10*result['flux']/np.log(hi/lo)  # MJy/sr
+            for key in ['zodiacal', 'dgl']:
+                result[key] = np.where(shown, background[key], np.nan)
+            result['flux'] = result['zodiacal']+result['dgl']+result['airglow']
+            result['mag'] = ab_magnitude(result['flux'])
+            result['delta'] = background['delta']
+        return result
 
     def point(self, ra, dec, date, **settings):
         r = self.evaluate(vector(ra, dec), date, **settings)
-        return dict(utc=r['utc'], ra_deg=ra % 360, dec_deg=dec, band=r['band'], orbit=r['orbit'],
+        point = dict(utc=r['utc'], ra_deg=ra % 360, dec_deg=dec, band=r['band'], orbit=r['orbit'],
                     height_km=r['height'], orbital_phase_deg=r['state']['orbital_phase_deg'], sza_deg=r['state']['sza'],
                     zenith_deg=float(r['theta'][0]), elv_deg=float(r['elv'][0]), minimum_elv_deg=r['min_elv_deg'], view_allowed=bool(r['view'][0]),
                     earth_occulted=bool(r['earth'][0]), model_valid=bool(r['valid'][0]),
-                    ab_mag_arcsec2=float(r['mag'][0]), photon_radiance=float(r['flux'][0]),
+                    ab_mag_arcsec2=float(r['mag'][0]), photon_radiance=float(r.get('airglow_photon_radiance',r['flux'])[0]), kind=r['kind'],
                     sun_ra_dec_deg=coordinates(r['sun']), moon_ra_dec_deg=coordinates(r['moon']),
                     sun_separation_deg=float(np.rad2deg(np.arccos(np.clip(vector(ra, dec)@r['sun'], -1, 1)))),
                     moon_separation_deg=float(np.rad2deg(np.arccos(np.clip(vector(ra, dec)@r['moon'], -1, 1)))))
+
+        if r['kind'] == 'total':
+            point.update(intensity_mjy_sr=float(r['flux'][0]), zodiacal_mjy_sr=float(r['zodiacal'][0]),
+                         dgl_mjy_sr=float(r['dgl'][0]), airglow_mjy_sr=float(r['airglow'][0]))
+        return point
 
     def save_fits(self, r, filename):
         path = Path(filename)
@@ -176,6 +195,11 @@ class AirglowOrbitModel(SkyModel):
         keys = ['mag', 'flux', 'lit', 'earth', 'valid', 'hmin', 'cutoff', 'theta', 'view', 'elv']
         names = ['AB_MAG_ARCSEC2', 'PHOTON_RADIANCE', 'SUNLIT_RADIANCE', 'EARTH_OCCULTED', 'MODEL_VALID', 'MIN_ALTITUDE', 'PHOTO_CUTOFF', 'ZENITH_ANGLE', 'VIEW_ALLOWED', 'ELV']
         units = ['mag/arcsec2', 'photons/s/cm2/sr', 'photons/s/cm2/sr', '', '', 'km', '', 'deg', '', 'deg']
+        if r['kind'] == 'total':
+            names[1] = 'INTENSITY_MJY_SR'; units[1] = 'MJy/sr'
+            keys += ['zodiacal', 'dgl', 'airglow', 'airglow_photon_radiance']
+            names += ['ZODIACAL_MJY_SR', 'DGL_MJY_SR', 'AIRGLOW_MJY_SR', 'AIRGLOW_PHOTON_RADIANCE']
+            units += ['MJy/sr', 'MJy/sr', 'MJy/sr', 'photons/s/cm2/sr']
         lo, hi = self.manifest['bands'][r['band']]
         headers = [('DATE-UTC', r['utc']), ('ORBIT', r['orbit']), ('ORBMODEL', 'IDEAL SOLAR CIRCLE'),
                    ('SAT_H', r['height']), ('SAT_SZA', r['state']['sza']), ('PHASE', r['state']['orbital_phase_deg']),
@@ -186,6 +210,14 @@ class AirglowOrbitModel(SkyModel):
                    ('BAND', r['band']), ('BANDMIN', lo/1000), ('BANDMAX', hi/1000), ('PHOTCNT', True),
                    ('FULLBAND', False), ('ABSORPT', False), ('TWILHIST', False), ('INTVER', 2), ('DS_KM', r['step_km']),
                    ('TABLESHA', self.manifest['airglow'][r['model']]['source_sha256']), ('MODEL', r['model'])]
+        headers.append(('DATATYPE', r['kind'].upper()))
+        if r['kind'] == 'total':
+            meta = self.manifest['dgl']['metadata']
+            headers += [('REF-UTC', self.manifest['solar']['reference_utc']), ('ROT-DEG', np.rad2deg(r['delta'])),
+                        ('SRC_SHA', self.manifest['zodiacal'][r['band']]['source_sha256']),
+                        ('DGL_SHA', self.manifest['dgl']['bands'][r['band']]['source_sha256']),
+                        ('CORRMOD','C2022_all'), ('CORRSCL',meta['scale']), ('BETAOP','MULTIPLY'),
+                        ('ALPHAPP',meta['alpha_approximation']), ('BETAREF',meta['beta_reference']), ('DGLFIXED',True)]
         if r['epoch']: headers.append(('EPOCH', r['epoch']))
         for body, prefix in [(r['sun'], 'SUN'), (r['moon'], 'MOON'), (r['state']['zenith'], 'ZEN')]:
             ra, dec = coordinates(body); headers += [(prefix+'RA', ra), (prefix+'DEC', dec)]
@@ -237,7 +269,8 @@ class AirglowOrbitModel(SkyModel):
         ax.grid(alpha=.3); ticks = np.arange(-150, 180, 30)
         ax.set_xticks(np.deg2rad(ticks), [f'{int(-t)%360}°' for t in ticks]); ax.set_xlabel('RA (deg; increases to the left)'); ax.set_ylabel('DEC (deg)')
         lo_nm, hi_nm = self.manifest['bands'][r['band']]
-        fig.suptitle(f"Airglow | {r['band']} {lo_nm:g}-{hi_nm:g} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}\n"
+        label = 'Zodiacal light + DGL + Airglow' if r['kind'] == 'total' else 'Airglow'
+        fig.suptitle(f"{label} | {r['band']} {lo_nm:g}-{hi_nm:g} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}\n"
                      f"{r['orbit']} | H={r['height']:g} km | φ={r['state']['orbital_phase_deg']:.1f}° | SZA={r['state']['sza']:.1f}° | zenith={r['zenith_min']:g}-{r['zenith_max']:g}° | ELV ≥ {r['min_elv_deg']:g}°", fontsize=11)
         fig.colorbar(im, ax=ax, orientation='horizontal', fraction=.045, pad=.12, label='AB mag / arcsec²')
         fig.text(.5,.025, f"Sun separation ≥ {r['sun_separation']:g}° ({'on' if r['sun_avoidance'] else 'off'}); Moon ≥ {r['moon_separation']:g}° ({'on' if r['moon_avoidance'] else 'off'}) | ELV ≥ {r['min_elv_deg']:g}° | Gray: Earth; hatch: partial model; pale: excluded\nIdeal solar-following circle; mean emission table; no UV absorption or twilight history", ha='center', fontsize=8)
@@ -257,6 +290,7 @@ def main():
     p.add_argument('--zenith-max', type=float, default=180.)
     p.add_argument('--min-elv', '--elv-min', type=float, default=0., help='Minimum Earth limb elevation, deg (default: 0)')
     p.add_argument('--band', choices=BANDS, default='VIS')
+    p.add_argument('--kind', choices=['airglow','total'], default='airglow', help='Total = zodiacal + DGL + airglow')
     p.add_argument('--model', choices=['combined','glow'], default='combined')
     p.add_argument('--nside', type=int, default=128)
     p.add_argument('--data-dir', type=Path, default=DEFAULT_DATA)
@@ -272,10 +306,10 @@ def main():
     a = p.parse_args()
     if a.gui:
         from airglow_orbit_gui import main as gui
-        gui(a.data_dir); return
+        gui(a.data_dir, kind=a.kind); return
     try:
         sky = AirglowOrbitModel(a.data_dir)
-        settings = dict(band=a.band, model=a.model, height=a.height, orbit=a.orbit, orbital_phase_deg=a.orbital_phase_deg, epoch=a.epoch,
+        settings = dict(band=a.band, model=a.model, kind=a.kind, height=a.height, orbit=a.orbit, orbital_phase_deg=a.orbital_phase_deg, epoch=a.epoch,
                         zenith_min=a.zenith_min, zenith_max=a.zenith_max, min_elv_deg=a.min_elv, sun_avoidance=not a.no_sun_avoidance,
                         sun_separation=a.sun_separation, moon_avoidance=not a.no_moon_avoidance,
                         moon_separation=a.moon_separation, engine=a.engine)
