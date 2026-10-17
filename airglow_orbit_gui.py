@@ -12,7 +12,7 @@ from airglow_orbit import AirglowOrbitModel, ORBIT_TYPES, BANDS, DEFAULT_DATA, u
 
 
 class Viewer:
-    def __init__(self, root, data_dir=DEFAULT_DATA, kind='airglow'):
+    def __init__(self, root, data_dir=DEFAULT_DATA, kind='total'):
         self.root=root; self.sky=AirglowOrbitModel(data_dir); self.result=None; self.busy=False
         self.messages=queue.Queue(); self.vars={}
         root.title('S-DRIFT | orbit sky background'); root.geometry('1380x1000')
@@ -115,7 +115,7 @@ class Viewer:
             self.status.set('Saved '+path)
 
 
-def main(data_dir=DEFAULT_DATA, kind='airglow'):
+def main(data_dir=DEFAULT_DATA, kind='total'):
     root=tk.Tk();Viewer(root,data_dir,kind=kind);root.mainloop()
 
 if __name__=='__main__':main()

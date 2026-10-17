@@ -17,7 +17,7 @@ python3 airglow_orbit.py --gui
 `python3 airglow_orbit_gui.py`도 같은 창을 엽니다. 원본 계산 코드를 포함한 개발 폴더에서는
 `python3 airglow_gui.py`도 새 뷰어를 엽니다. 그 폴더의 이전 H/SZA 기준 뷰어는
 `python3 airglow_gui.py --reference`로 실행합니다. GitHub 배포에는 새 뷰어만 포함합니다.
-GUI는 현재 UTC로 시작합니다. Orbit, UTC, H, 북쪽 기준 위상 φ, band, 최소 ELV를 선택하고
+GUI는 현재 UTC와 Zodiacal + DGL + Airglow 합산 모드로 시작합니다. Orbit, UTC, H, 북쪽 기준 위상 φ, band, 최소 ELV를 선택하고
 Calculate map을 누릅니다. contour는 0.1-1.0 mag, 기본 0.5 mag입니다.
 Tkinter와 그래픽 데스크톱이 필요합니다. `python3 -m tkinter`로 확인하고,
 Tkinter가 없다면 Python 배포판에 맞는 Tcl/Tk 패키지를 설치합니다.
@@ -102,18 +102,18 @@ R=6371 km, mu=398600.4418 km³/s²이며 H=650 km의 주기는 약 97.58분입�
 
 ```sh
 # Dawn-dusk, 선택 UTC의 북쪽 위상, 기본 ELV 및 태양·달 회피
-python3 airglow_orbit.py --date 2026-10-17T00:00:00Z \
+python3 airglow_orbit.py --kind airglow --date 2026-10-17T00:00:00Z \
   --orbit dawn-dusk --height 650 --orbital-phase-deg 0 --band VIS --nside 128 \
   --fits airglow_VIS_nside128_20261017_dawn-dusk.fits.gz \
   --png airglow_VIS_nside128_20261017_dawn-dusk.png
 
 # Noon-midnight 자정; PDF 또는 --show로 화면 표시 가능
-python3 airglow_orbit.py --date 2026-10-17T00:00:00Z \
+python3 airglow_orbit.py --kind airglow --date 2026-10-17T00:00:00Z \
   --orbit noon-midnight --orbital-phase-deg 90 --height 650 --band UV3 \
   --pdf airglow_UV3_nside128_20261017_noon-midnight.pdf
 
 # 기준 위상부터 시간 진행, 단일 RA/DEC 질의
-python3 airglow_orbit.py --date 2026-10-17T00:10:00Z \
+python3 airglow_orbit.py --kind airglow --date 2026-10-17T00:10:00Z \
   --epoch 2026-10-17T00:00:00Z --orbital-phase-deg 90 --orbit noon-midnight \
   --ra 30 --dec 10 --band VIS
 ```
@@ -126,7 +126,7 @@ python3 airglow_orbit.py --date 2026-10-17T00:10:00Z \
 ```python
 from airglow_orbit import AirglowOrbitModel
 sky = AirglowOrbitModel()
-r = sky.sky_map('2026-10-17T00:00:00Z', orbit='noon-midnight',
+r = sky.sky_map('2026-10-17T00:00:00Z', kind='airglow', orbit='noon-midnight',
                 orbital_phase_deg=90, height=650, band='VIS', nside=128, min_elv_deg=0)
 fig = sky.plot(r, contour_step=0.5)
 fig.savefig('map.pdf')
@@ -171,8 +171,8 @@ python3 airglow_orbit.py --kind total --orbit noon-midnight \
   --png total_VIS_nside128_20261017.png
 ```
 
-API에서도 `sky.sky_map(..., kind='total')`로 선택합니다. 기본값 `kind='airglow'`는
-기존 Airglow 단독 모드입니다. `--model combined/glow`는 합산 여부와 별개로
+API에서도 `sky.sky_map(..., kind='total')`로 선택합니다. 기본값은 `kind='total'`로 세 성분을 합산합니다.
+Airglow 단독은 `kind='airglow'` 또는 CLI의 `--kind airglow`로 선택합니다. `--model combined/glow`는 합산 여부와 별개로
 Airglow의 발광 성분 모델을 선택합니다.
 
 세 성분은 같은 band의 **MJy/sr로 통일하여 합한 뒤** AB mag/arcsec²로 변환합니다.

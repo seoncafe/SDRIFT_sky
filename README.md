@@ -170,3 +170,5 @@ Zodiacal light + DGL + Airglow 합산 모드는 세 성분의 intensity를 더�
 Airglow와 동일한 궤도·각도·ELV 및 태양·달 회피 조건을 사용합니다.
 웹 모델 목록에서 선택하거나 `python3 airglow_orbit.py --gui --kind total`로
 실행하십시오. [사용법](README_airglow_orbit.md#zodiacal-light--dgl--airglow-합산).
+
+웹과 Python 궤도 뷰어의 기본 모드는 **Zodiacal light + DGL + Airglow**입니다.

@@ -122,7 +122,7 @@ def _numpy_kernel(height, sza, directions, q, z, chi, support, step):
 class AirglowOrbitModel(SkyModel):
     def evaluate(self, directions, date, band='VIS', model='combined', height=650., orbit='dawn-dusk', orbital_phase_deg=0.,
                  epoch=None, sun_avoidance=True, sun_separation=90.,
-                 moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=0., kind='airglow'):
+                 moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=0., kind='total'):
         if kind not in ('airglow', 'total'): raise ValueError('Kind must be airglow or total')
         if phase is not None: orbital_phase_deg = phase  # alias; NORTH_V1 convention
         if band not in BANDS or model not in ('glow', 'combined'): raise ValueError('Unknown band/model')
@@ -287,7 +287,7 @@ def main():
     p.add_argument('--epoch', help='UTC of the input north phase; omit to hold phase fixed')
     p.add_argument('--min-elv', '--elv-min', type=float, default=0., help='Minimum Earth limb elevation, deg (default: 0)')
     p.add_argument('--band', choices=BANDS, default='VIS')
-    p.add_argument('--kind', choices=['airglow','total'], default='airglow', help='Total = zodiacal + DGL + airglow')
+    p.add_argument('--kind', choices=['airglow','total'], default='total', help='Total = zodiacal + DGL + airglow')
     p.add_argument('--model', choices=['combined','glow'], default='combined')
     p.add_argument('--nside', type=int, default=128)
     p.add_argument('--data-dir', type=Path, default=DEFAULT_DATA)
