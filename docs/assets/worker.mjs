@@ -1,5 +1,5 @@
 // Modified 2026-10-17. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,airglowMjy,D,mod} from './sky-core.mjs?v=elv-only-1';
+import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,airglowMjy,D,mod} from './sky-core.mjs?v=elv20-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -30,7 +30,7 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
   delta=mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI;result.delta=delta;
   for(const key of ['zodiacal','dgl','airglow','airglowPhoton']){result[key]=new Float32Array(np);result[key].fill(NaN);}
  }
- const {sampleMap}=await import('./sky-core.mjs?v=elv-only-1');
+ const {sampleMap}=await import('./sky-core.mjs?v=elv20-1');
  for(let i=0;i<np;i++){
  const v=pixVector(r.nside,i);
  if(!air){

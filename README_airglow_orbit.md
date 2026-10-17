@@ -43,13 +43,13 @@ Web Worker에서 시선을 적분하며 계산을 중지할 수 있습니다. Py
 관측 영역을 정합니다. 지구에 가리지 않는 하향 시선은 위성보다 낮은 대기를
 통과하는 경로도 적분합니다.
 
-**기본 관측 조건은 Sun separation >= 90°, Moon separation >= 60°, ELV >= 0°입니다.**
+**기본 관측 조건은 Sun separation >= 90°, Moon separation >= 60°, ELV >= 20°입니다.**
 ELV(Earth limb elevation)는 구형 지구 표면의 가장자리보다 시선이 얼마나
 위에 있는지를 나타내는 각도입니다. 고도 H와 천정각 θ에 대해
 `ELV = 180° - asin(R/(R+H)) - θ`이며 R=6371 km입니다.
 고도 650 km에서는 약 `ELV = 114.85° - θ`입니다.
 GUI/웹의 **최소 ELV**를 조절하며 CLI는 `--min-elv 10`, Python API는
-`min_elv_deg=10`처럼 지정합니다. 기본값은 0.0°이고 -90~180° 범위에서
+`min_elv_deg=10`처럼 지정합니다. 기본값은 20.0°이고 -90~180° 범위에서
 입력합니다. 태양·달 회피 조건과 동시에 적용합니다.
 음수를 지정해도 지구에 가려진 방향의 밝기는 계산하지 않습니다.
 ELV >= 0°가 모델의 모든 대기층을 피한다는 뜻은 아닙니다.
@@ -127,7 +127,7 @@ python3 airglow_orbit.py --kind airglow --date 2026-10-17T00:10:00Z \
 from airglow_orbit import AirglowOrbitModel
 sky = AirglowOrbitModel()
 r = sky.sky_map('2026-10-17T00:00:00Z', kind='airglow', orbit='noon-midnight',
-                orbital_phase_deg=90, height=650, band='VIS', nside=128, min_elv_deg=0)
+                orbital_phase_deg=90, height=650, band='VIS', nside=128, min_elv_deg=20)
 fig = sky.plot(r, contour_step=0.5)
 fig.savefig('map.pdf')
 sky.save_fits(r, 'map.fits.gz')

@@ -36,7 +36,7 @@ class Viewer:
         entry(f,'band','Band','VIS',BANDS,6); entry(f,'model','Model','combined',('combined','glow'),10)
         entry(f,'nside','NSIDE','128',('16','32','64','128'),5)
         f=row()
-        entry(f,'min_elv_deg','Min ELV (deg)','0.0',width=6)
+        entry(f,'min_elv_deg','Min ELV (deg)','20.0',width=6)
         self.evolve=tk.BooleanVar(value=False)
         ttk.Checkbutton(f,text='Evolve phase from epoch',variable=self.evolve).pack(side='left',padx=5)
         entry(f,'epoch','Phase epoch UTC','2026-10-17T00:00:00Z',width=23)
