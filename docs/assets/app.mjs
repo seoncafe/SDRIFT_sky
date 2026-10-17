@@ -11,7 +11,7 @@ fields.forEach((f,i)=>{const wrap=document.createElement('div');wrap.className='
  $(f).onchange=()=>{const v=Number($(f).value);if(Number.isInteger(v)){date[setters[i]](v-(i===1?1:0));}dateUI();schedule();};});
 date.setUTCMilliseconds(0);dateUI();$('now').onclick=()=>{date=new Date();date.setUTCMilliseconds(0);dateUI();schedule();};
 let timer;function schedule(){clearTimeout(timer);timer=setTimeout(calculate,250);}
-function panels(){$('moon-controls').hidden=false;$('zodi-controls').hidden=false;$('epoch').disabled=!$('evolve').checked;$('dgl-hint').hidden=!['dgl','zodiacal_dgl','total'].includes($('kind').value);$('air-controls').hidden=!isAir($('kind').value);}
+function panels(){$('moon-controls').hidden=false;$('zodi-controls').hidden=false;$('epoch').disabled=!$('evolve').checked;$('dgl-hint').hidden=!['dgl','zodiacal_dgl','total'].includes($('kind').value);$('air-controls').hidden=!isAir($('kind').value);$('air-help').hidden=!isAir($('kind').value);}
 for(const id of ['kind','band','nside','anti','elongation','moon-avoid','moon-angle','height','orbit','phase','min-elv','evolve','epoch','model'])$(id).onchange=()=>{panels();schedule();};
 for(const id of ['contour','contour-step'])$(id).onchange=()=>{if(result)draw();};$('calculate').onclick=calculate;
 function stop(){generation++;worker?.terminate();worker=null;$('cancel').disabled=true;$('progress').hidden=true;}
@@ -38,7 +38,7 @@ function draw(){const r=savedRequest,b=manifest.bands[r.band];$('map-title').tex
  drawMoon();drawSun();drawZenith();ctx.lineWidth=1;ctx.strokeStyle='#5b6b7a';ctx.beginPath();ctx.ellipse(area.x+area.w/2,area.y+area.h/2,area.w/2,area.h/2,0,0,2*Math.PI);ctx.stroke();
  ctx.fillStyle='#203348';ctx.font='14px system-ui';ctx.textAlign='center';for(const ra of [150,90,30,0,330,270,210]){const [x]=moll(ra*D,0);ctx.fillText(ra+'°',area.x+(x+1)*area.w/2,area.y+area.h+24);}ctx.fillText('RA (Equatorial) — increases to the left',600,area.y+area.h+48);ctx.save();ctx.translate(25,area.y+area.h/2);ctx.rotate(-Math.PI/2);ctx.fillText('DEC (°)',0,0);ctx.restore();for(const dec of [-60,-30,0,30,60]){const [,y]=moll(0,dec*D);ctx.textAlign='right';ctx.fillText(dec+'°',area.x-12,area.y+(1-y)*area.h/2+5);}
  for(let x=0;x<700;x++){ctx.fillStyle=`rgb(${color(lo+(hi-lo)*x/699,lo,hi)})`;ctx.fillRect(250+x,644,1,18);}ctx.fillStyle='#203348';ctx.textAlign='center';for(let i=0;i<=6;i++){const x=250+700*i/6;ctx.fillText((lo+(hi-lo)*i/6).toFixed(1),x,681);}ctx.fillText('AB mag / arcsec²',600,707);
- $('legend').textContent=`Contour: ${Number($('contour-step').value).toFixed(1)} mag · ${lo.toFixed(1)}–${hi.toFixed(1)} · 큰 AB mag = 어두운 색 · 높은 contour level = 굵은 선${result.moon?' · Moon (geocentric RA, DEC) = ('+mod(Math.atan2(result.moon[1],result.moon[0])/D,360).toFixed(2)+'°, '+(Math.asin(result.moon[2])/D).toFixed(2)+'°)':''}${isAir(r.kind)?' · 회색: 지구 차폐 · 빗금: 모델 범위 밖 / photoelectron cutoff · 옅은 영역: 회피 / ELV 조건 밖 · 녹색 점선: 최소 ELV 경계 · 이상적 원형 궤도':''}`;}
+ $('legend').textContent=`Contour: ${Number($('contour-step').value).toFixed(1)} mag · ${lo.toFixed(1)}–${hi.toFixed(1)} mag / arcsec²${result.moon?' · Moon (geocentric RA, DEC) = ('+mod(Math.atan2(result.moon[1],result.moon[0])/D,360).toFixed(2)+'°, '+(Math.asin(result.moon[2])/D).toFixed(2)+'°)':''}`;}
 function drawSeparation(v,angle,color){
  if(!(angle>0&&angle<180))return;
  const project=p=>{const q=moll(Math.atan2(p[1],p[0]),Math.asin(Math.max(-1,Math.min(1,p[2]))));return [area.x+(q[0]+1)*area.w/2,area.y+(1-q[1])*area.h/2];};
