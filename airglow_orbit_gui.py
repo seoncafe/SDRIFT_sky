@@ -31,7 +31,7 @@ class Viewer:
         for text,sec in [('-1 h',-3600),('-1 min',-60),('+1 min',60),('+1 h',3600)]:
             ttk.Button(f,text=text,command=lambda n=sec:self.shift(n)).pack(side='left',padx=3)
         f=row(); entry(f,'orbit','Orbit','dawn-dusk',ORBIT_TYPES,16)
-        entry(f,'height','H (km)','650',width=7); entry(f,'phase','Phase u (deg)','0',width=7)
+        entry(f,'height','H (km)','650',width=7); entry(f,'orbital_phase_deg','북쪽 기준 궤도 위상 φ (°)','0',width=7)
         entry(f,'band','Band','VIS',BANDS,6); entry(f,'model','Model','combined',('combined','glow'),10)
         entry(f,'nside','NSIDE','128',('16','32','64','128'),5)
         f=row(); entry(f,'zenith_min','Min zenith (deg)','0',width=6); entry(f,'zenith_max','Max zenith (deg)','180',width=6)
@@ -48,7 +48,7 @@ class Viewer:
         f=row(); self.button=ttk.Button(f,text='Calculate map',command=self.update);self.button.pack(side='left')
         for kind in ['pdf','png','fits.gz']:
             ttk.Button(f,text='Save '+kind.upper(),command=lambda k=kind:self.save(k)).pack(side='left',padx=5)
-        ttk.Label(controls,text='Ideal solar-following circles. DD: u=0 projected north; NM: u=0 noon, 180 midnight. Zenith: 0 up, 90 horizontal, 180 down.').pack(anchor='w')
+        ttk.Label(controls,text='Ideal solar-following circles. Both: φ=0 projected north, 180 south. NM: φ=90 midnight, 270 noon. Zenith: 0 up, 90 horizontal, 180 down.').pack(anchor='w')
         ttk.Label(controls,text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon is geocentric (no spacecraft parallax).').pack(anchor='w')
         self.status=tk.StringVar(value='Preparing map'); ttk.Label(root,textvariable=self.status,padding=8).pack(fill='x')
         self.figure=Figure(figsize=(13,7.5)); self.canvas=FigureCanvasTkAgg(self.figure,master=root)
@@ -70,7 +70,7 @@ class Viewer:
     def update(self):
         if self.busy:return
         try:
-            v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','phase','zenith_min','zenith_max','sun_separation','moon_separation']}
+            v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','zenith_min','zenith_max','sun_separation','moon_separation']}
             settings.update(orbit=v['orbit'],band=v['band'],model=v['model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None)
             utc_time(v['date']); nside=int(v['nside'])
         except ValueError as exc: messagebox.showerror('Input',str(exc)); return
@@ -85,7 +85,7 @@ class Viewer:
             state,value=self.messages.get_nowait();self.busy=False;self.button.configure(state='normal')
             if state=='error':self.status.set('Calculation failed');messagebox.showerror('Airglow',value)
             else:
-                self.result=value;self.draw();self.status.set(f"{value['engine']} | u={value['state']['phase']:.2f} deg | SZA={value['state']['sza']:.2f} deg | {int(value['view'].sum()):,} allowed pixels")
+                self.result=value;self.draw();self.status.set(f"{value['engine']} | φ={value['state']['orbital_phase_deg']:.2f} deg | SZA={value['state']['sza']:.2f} deg | {int(value['view'].sum()):,} allowed pixels")
         except queue.Empty:pass
         except Exception as exc:messagebox.showerror('Plot',str(exc))
         self.root.after(100,self.poll)
@@ -105,7 +105,7 @@ class Viewer:
     def save(self,kind):
         if self.result is None:return
         r=self.result;stamp=r['utc'].replace('-','').replace(':','').replace('T','_').rstrip('Z')
-        name=f"airglow_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_u{r['state']['phase']:.3f}_z{r['zenith_min']:g}-{r['zenith_max']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
+        name=f"airglow_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_z{r['zenith_min']:g}-{r['zenith_max']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
         path=filedialog.asksaveasfilename(defaultextension='.'+kind,initialfile=name+'.'+kind)
         if path:
             if kind=='fits.gz':self.sky.save_fits(r,path)

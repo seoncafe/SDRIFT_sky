@@ -62,18 +62,18 @@ export function abZodi(value){return value>0?-2.5*Math.log10(value*1e6/ARC**2/36
 export function abAir(value,band){return value>0?-2.5*Math.log10(6.62607015e-27*value/(Math.log(band[1]/band[0])*ARC**2)/(3631e-23)):Infinity;}
 
 // Ideal solar-following circles for initial design; not an SGP4/J2 propagator.
-export function orbitState(sun,H,orbit='dawn-dusk',phase=0,unix=0,epoch=null){
+export function orbitState(sun,H,orbit='dawn-dusk',orbitalPhaseDeg=0,unix=0,epoch=null){
  if(!['dawn-dusk','noon-midnight'].includes(orbit))throw Error('Unknown orbit');
- if(!Number.isFinite(H)||H<=0||H>=1500||!Number.isFinite(phase))throw Error('Invalid orbit input');
+ if(!Number.isFinite(H)||H<=0||H>=1500||!Number.isFinite(orbitalPhaseDeg))throw Error('Invalid orbit input');
  const dot=(a,b)=>a.reduce((v,x,j)=>v+x*b[j],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>{const n=Math.hypot(...a);return a.map(x=>x/n);};
  const s=unit(sun),k=Math.abs(s[2])<.999999?[0,0,1]:[1,0,0];
  const north=unit(k.map((x,j)=>x-dot(k,s)*s[j])),east=cross(s,north);
  const period=2*Math.PI*Math.sqrt((R+H)**3/398600.4418);
- const u=mod(phase+(epoch===null?0:(unix-epoch)*360/period),360),a=u*D;
- const zenith=unit(s.map((x,j)=>orbit==='dawn-dusk'?Math.cos(a)*north[j]+Math.sin(a)*east[j]:Math.cos(a)*x+Math.sin(a)*north[j]));
+ const phi=mod(orbitalPhaseDeg+(epoch===null?0:(unix-epoch)*360/period),360),a=phi*D;
+ const zenith=unit(s.map((x,j)=>Math.cos(a)*north[j]+Math.sin(a)*(orbit==='dawn-dusk'?east[j]:-x)));
  let c=clamp(dot(zenith,s),-1,1);if(Math.abs(Math.abs(c)-1)<1e-14)c=Math.sign(c);const sz=Math.acos(c)/D;
  const proj=zenith.map((x,j)=>x-c*s[j]),z=Math.hypot(...proj)>1e-10?unit(proj):north;
- return {sun:s,zenith,sza:sz,phase:u,period,axes:[s,cross(z,s),z]};
+ return {sun:s,zenith,sza:sz,orbitalPhaseDeg:phi,period,axes:[s,cross(z,s),z]};
 }
 export function referenceDirection(v,state){return state.axes.map(a=>a.reduce((s,x,j)=>s+x*v[j],0));}
 export function visibility(v,state,r,moon){
@@ -135,7 +135,7 @@ export function fitsMap(result,request,manifest){
   const rows=[['XTENSION','BINTABLE'],['BITPIX',8],['NAXIS',2],['NAXIS1',names.length*4],['NAXIS2',n],['PCOUNT',0],['GCOUNT',1],['TFIELDS',names.length],['PIXTYPE','HEALPIX'],['ORDERING','RING'],['NSIDE',request.nside],['FIRSTPIX',0],['LASTPIX',n-1],['INDXSCHM','IMPLICIT'],['COORDSYS','C'],['BAND',request.band],['WEBVER',2],['CREATOR','S-DRIFT HTML'],['DATATYPE',request.kind.toUpperCase()],['BANDMIN',manifest.bands[request.band][0]/1000],['BANDMAX',manifest.bands[request.band][1]/1000],['PHOTCNT',true]];
   names.forEach((name,i)=>{rows.push(['TTYPE'+(i+1),name],['TFORM'+(i+1),'1E']);});
   rows.push(['TUNIT1','mag/arcsec2'],['TUNIT2',air?'photons/s/cm2/sr':'MJy/sr']);
-  if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['DATE-UTC',request.utc.replace('Z','')],['ORBIT',request.orbit],['ORBMODEL','IDEAL SOLAR CIRCLE'],['PHASE',result.state.phase],['PHASE0',request.phase],['PHMODE',request.evolve?'EPOCH':'MANUAL'],['EPOCH',request.epoch],['PERIOD',result.state.period],['ZENMIN',request.zenithMin],['ZENMAX',request.zenithMax],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','GEOCENTRIC']);
+  if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['DATE-UTC',request.utc.replace('Z','')],['ORBIT',request.orbit],['ORBMODEL','IDEAL SOLAR CIRCLE'],['PHASE',result.state.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V1'],['PHASE0',request.orbitalPhaseDeg],['PHMODE',request.evolve?'EPOCH':'MANUAL'],['EPOCH',request.epoch],['PERIOD',result.state.period],['ZENMIN',request.zenithMin],['ZENMAX',request.zenithMax],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','GEOCENTRIC']);
     for(const [v,prefix]of [[result.sun,'SUN'],[result.moon,'MOON'],[result.state.zenith,'ZEN']])if(v)rows.push([prefix+'RA',mod(Math.atan2(v[1],v[0])/D,360)],[prefix+'DEC',Math.asin(clamp(v[2],-1,1))/D]);
   }
   else{

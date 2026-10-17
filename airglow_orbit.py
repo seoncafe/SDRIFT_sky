@@ -23,22 +23,23 @@ except ImportError:
     prange = range
 
 
-def orbit_state(sun, height=650., orbit='dawn-dusk', phase=0., unix=0., epoch=None):
-    """Manual phase or circular mean-motion phase since an explicit UTC epoch.
+def orbit_state(sun, height=650., orbit='dawn-dusk', orbital_phase_deg=0., unix=0., epoch=None):
+    """North-referenced orbital phase, optionally advanced from an explicit UTC epoch.
 
-    DD phase 0: projected north, 90: s cross north. NM phase 0: noon,
-    90: projected north, 180: midnight. Solar-following planes are ideal.
+    Both orbits: phi=0 projected north, 180 south. Positive direction:
+    DD phi=90: s cross north; NM phi=90: midnight, 270 noon.
+    Solar-following planes are ideal.
     """
-    if orbit not in ORBIT_TYPES or not np.isfinite(height) or not 0 < height < 1500 or not np.isfinite(phase):
-        raise ValueError('Choose an orbit; 0 < H < 1500 km; finite phase')
+    if orbit not in ORBIT_TYPES or not np.isfinite(height) or not 0 < height < 1500 or not np.isfinite(orbital_phase_deg):
+        raise ValueError('Choose an orbit; 0 < H < 1500 km; finite orbital_phase_deg')
     s = np.asarray(sun, dtype=float); s = s/np.linalg.norm(s)
     k = np.array([0., 0., 1.]) if abs(s[2]) < .999999 else np.array([1., 0., 0.])
     north = k-(k@s)*s; north /= np.linalg.norm(north)
     east = np.cross(s, north)
     period = 2*np.pi*np.sqrt((R+height)**3/398600.4418)
-    u = (phase+(0 if epoch is None else (unix-epoch)*360/period)) % 360
-    a = np.deg2rad(u)
-    zenith = np.cos(a)*(north if orbit == 'dawn-dusk' else s)+np.sin(a)*(east if orbit == 'dawn-dusk' else north)
+    phi = (orbital_phase_deg+(0 if epoch is None else (unix-epoch)*360/period)) % 360
+    a = np.deg2rad(phi)
+    zenith = np.cos(a)*north+np.sin(a)*(east if orbit == 'dawn-dusk' else -s)
     zenith /= np.linalg.norm(zenith)
     c = np.clip(zenith@s, -1., 1.)
     if abs(abs(c)-1.) < 1e-14: c = np.sign(c)
@@ -47,7 +48,7 @@ def orbit_state(sun, height=650., orbit='dawn-dusk', phase=0., unix=0., epoch=No
     # Columns map the reference Sun +X / satellite in XZ to the real sky.
     axes = np.column_stack((s, np.cross(z, s), z))
     return dict(sun=s, zenith=zenith, sza=float(np.rad2deg(np.arccos(c))),
-                phase=float(u), period=float(period), axes=axes)
+                orbital_phase_deg=float(phi), period=float(period), axes=axes)
 
 
 def _kernel(height, sza, directions, q, z, chi, support, step):
@@ -118,9 +119,10 @@ def _numpy_kernel(height, sza, directions, q, z, chi, support, step):
 
 
 class AirglowOrbitModel(SkyModel):
-    def evaluate(self, directions, date, band='VIS', model='combined', height=650., orbit='dawn-dusk', phase=0.,
+    def evaluate(self, directions, date, band='VIS', model='combined', height=650., orbit='dawn-dusk', orbital_phase_deg=0.,
                  epoch=None, zenith_min=0., zenith_max=180., sun_avoidance=True, sun_separation=90.,
-                 moon_avoidance=True, moon_separation=60., engine='auto', step_km=2.):
+                 moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None):
+        if phase is not None: orbital_phase_deg = phase  # alias; NORTH_V1 convention
         if band not in BANDS or model not in ('glow', 'combined'): raise ValueError('Unknown band/model')
         if not all(np.isfinite(x) for x in (zenith_min, zenith_max, sun_separation, moon_separation, step_km)) or not (0 <= zenith_min <= zenith_max <= 180 and 0 <= sun_separation <= 180 and 0 <= moon_separation <= 180 and step_km > 0):
             raise ValueError('Angles must be 0-180; zenith_min <= zenith_max; positive LOS step')
@@ -130,7 +132,7 @@ class AirglowOrbitModel(SkyModel):
         if not np.isfinite(v).all() or not np.allclose(np.linalg.norm(v, axis=1), 1.): raise ValueError('LOS must be finite unit vectors')
         unix, utc = utc_time(date); epoch_unix = None if epoch is None else utc_time(epoch)[0]
         sun, moon = self._body(unix, 'solar'), self._body(unix, 'lunar')
-        state = orbit_state(sun, height, orbit, phase, unix, epoch_unix)
+        state = orbit_state(sun, height, orbit, orbital_phase_deg, unix, epoch_unix)
         theta = np.rad2deg(np.arccos(np.clip(v@state['zenith'], -1, 1)))
         view = (theta >= zenith_min-1e-9) & (theta <= zenith_max+1e-9)
         if sun_avoidance: view &= v@sun <= np.cos(np.deg2rad(sun_separation))+1e-12
@@ -147,7 +149,7 @@ class AirglowOrbitModel(SkyModel):
         return dict(flux=a[:, 0], lit=a[:, 1], earth=a[:, 2].astype(bool), valid=a[:, 3].astype(bool),
                     hmin=a[:, 4], cutoff=a[:, 5].astype(bool), theta=theta, view=view, mag=mag,
                     state=state, sun=sun, moon=moon, utc=utc, band=band, model=model, height=height,
-                    orbit=orbit, phase=phase, epoch=epoch, zenith_min=zenith_min, zenith_max=zenith_max,
+                    orbit=orbit, orbital_phase_deg=orbital_phase_deg, epoch=epoch, zenith_min=zenith_min, zenith_max=zenith_max,
                     sun_avoidance=sun_avoidance, sun_separation=sun_separation,
                     moon_avoidance=moon_avoidance, moon_separation=moon_separation, step_km=step_km,
                     engine='numba' if function is globals().get('_fast_kernel') else 'numpy')
@@ -155,7 +157,7 @@ class AirglowOrbitModel(SkyModel):
     def point(self, ra, dec, date, **settings):
         r = self.evaluate(vector(ra, dec), date, **settings)
         return dict(utc=r['utc'], ra_deg=ra % 360, dec_deg=dec, band=r['band'], orbit=r['orbit'],
-                    height_km=r['height'], phase_deg=r['state']['phase'], sza_deg=r['state']['sza'],
+                    height_km=r['height'], orbital_phase_deg=r['state']['orbital_phase_deg'], sza_deg=r['state']['sza'],
                     zenith_deg=float(r['theta'][0]), view_allowed=bool(r['view'][0]),
                     earth_occulted=bool(r['earth'][0]), model_valid=bool(r['valid'][0]),
                     ab_mag_arcsec2=float(r['mag'][0]), photon_radiance=float(r['flux'][0]),
@@ -172,8 +174,8 @@ class AirglowOrbitModel(SkyModel):
         units = ['mag/arcsec2', 'photons/s/cm2/sr', 'photons/s/cm2/sr', '', '', 'km', '', 'deg', '']
         lo, hi = self.manifest['bands'][r['band']]
         headers = [('DATE-UTC', r['utc']), ('ORBIT', r['orbit']), ('ORBMODEL', 'IDEAL SOLAR CIRCLE'),
-                   ('SAT_H', r['height']), ('SAT_SZA', r['state']['sza']), ('PHASE', r['state']['phase']),
-                   ('PHASE0', r['phase']), ('PHMODE', 'EPOCH' if r['epoch'] else 'MANUAL'),
+                   ('SAT_H', r['height']), ('SAT_SZA', r['state']['sza']), ('PHASE', r['state']['orbital_phase_deg']),
+                   ('PHREF', 'NORTH'), ('PHCONV', 'NORTH_V1'), ('PHASE0', r['orbital_phase_deg']), ('PHMODE', 'EPOCH' if r['epoch'] else 'MANUAL'),
                    ('PERIOD', r['state']['period']), ('ZENMIN', r['zenith_min']), ('ZENMAX', r['zenith_max']),
                    ('SUNMASK', r['sun_avoidance']), ('ELONGMIN', r['sun_separation']),
                    ('MOONMASK', r['moon_avoidance']), ('MOONMIN', r['moon_separation']), ('MOONOBS', 'GEOCENTRIC'),
@@ -231,7 +233,7 @@ class AirglowOrbitModel(SkyModel):
         ax.set_xticks(np.deg2rad(ticks), [f'{int(-t)%360}°' for t in ticks]); ax.set_xlabel('RA (deg; increases to the left)'); ax.set_ylabel('DEC (deg)')
         lo_nm, hi_nm = self.manifest['bands'][r['band']]
         fig.suptitle(f"Airglow | {r['band']} {lo_nm:g}-{hi_nm:g} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}\n"
-                     f"{r['orbit']} | H={r['height']:g} km | u={r['state']['phase']:.1f}° | SZA={r['state']['sza']:.1f}° | zenith={r['zenith_min']:g}-{r['zenith_max']:g}°", fontsize=11)
+                     f"{r['orbit']} | H={r['height']:g} km | φ={r['state']['orbital_phase_deg']:.1f}° | SZA={r['state']['sza']:.1f}° | zenith={r['zenith_min']:g}-{r['zenith_max']:g}°", fontsize=11)
         fig.colorbar(im, ax=ax, orientation='horizontal', fraction=.045, pad=.12, label='AB mag / arcsec²')
         fig.text(.5,.025, f"Sun separation ≥ {r['sun_separation']:g}° ({'on' if r['sun_avoidance'] else 'off'}); Moon ≥ {r['moon_separation']:g}° ({'on' if r['moon_avoidance'] else 'off'}) | Gray: Earth; hatch: partial model; pale: excluded\nIdeal solar-following circle; mean emission table; no UV absorption or twilight history", ha='center', fontsize=8)
         return fig
@@ -243,8 +245,9 @@ def main():
     p.add_argument('--date', '--utc', default=datetime.now(timezone.utc).isoformat())
     p.add_argument('--orbit', choices=ORBIT_TYPES, default='dawn-dusk')
     p.add_argument('--height', '--H', type=float, default=650.)
-    p.add_argument('--phase', type=float, default=0.)
-    p.add_argument('--epoch', help='UTC of the input phase; omit to hold phase fixed')
+    p.add_argument('--orbital-phase-deg', '--phase', dest='orbital_phase_deg', type=float, default=0.,
+                   help='North-referenced orbital phase phi, in degrees; 0=north, 180=south')
+    p.add_argument('--epoch', help='UTC of the input north phase; omit to hold phase fixed')
     p.add_argument('--zenith-min', type=float, default=0.)
     p.add_argument('--zenith-max', type=float, default=180.)
     p.add_argument('--band', choices=BANDS, default='VIS')
@@ -266,7 +269,7 @@ def main():
         gui(a.data_dir); return
     try:
         sky = AirglowOrbitModel(a.data_dir)
-        settings = dict(band=a.band, model=a.model, height=a.height, orbit=a.orbit, phase=a.phase, epoch=a.epoch,
+        settings = dict(band=a.band, model=a.model, height=a.height, orbit=a.orbit, orbital_phase_deg=a.orbital_phase_deg, epoch=a.epoch,
                         zenith_min=a.zenith_min, zenith_max=a.zenith_max, sun_avoidance=not a.no_sun_avoidance,
                         sun_separation=a.sun_separation, moon_avoidance=not a.no_moon_avoidance,
                         moon_separation=a.moon_separation, engine=a.engine)
@@ -274,7 +277,7 @@ def main():
         if a.ra is not None: print(sky.point(a.ra,a.dec,a.date,**settings))
         if a.pdf or a.png or a.fits or a.show or a.ra is None:
             r = sky.sky_map(a.date, nside=a.nside, **settings)
-            print(f"{r['orbit']} | UTC {r['utc']} | phase {r['state']['phase']:.3f} deg | SZA {r['state']['sza']:.3f} deg | {r['engine']} | {int(r['view'].sum())} allowed pixels")
+            print(f"{r['orbit']} | UTC {r['utc']} | north phase {r['state']['orbital_phase_deg']:.3f} deg | SZA {r['state']['sza']:.3f} deg | {r['engine']} | {int(r['view'].sum())} allowed pixels")
             if a.fits: sky.save_fits(r,a.fits)
             if a.pdf or a.png or a.show:
                 if not a.show:

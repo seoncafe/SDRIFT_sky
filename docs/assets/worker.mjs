@@ -1,5 +1,5 @@
 // Modified 2026-10-17. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,D,mod} from './sky-core.mjs?v=orbit-sky-2';
+import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,D,mod} from './sky-core.mjs?v=north-phase-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -23,8 +23,8 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
    result.delta=delta;result.sun=sun;
    moon=solarAt(Date.parse(r.utc)/1000,await array(m.lunar),m.lunar);result.moon=moon;
    if(r.kind==='zodiacal_dgl'){result.zodiacal=new Float32Array(np);result.dgl=new Float32Array(np);}
- }else {info=m.airglow[r.model];q=await array(info.bands[r.band]);state=orbitState(sun,r.height,r.orbit,r.phase,Date.parse(r.utc)/1000,r.evolve?Date.parse(r.epoch)/1000:null);result.state=state;for(const key of ['lit','hmin','theta'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff','view'])result[key]=new Uint8Array(np);}
- const {sampleMap}=await import('./sky-core.mjs?v=orbit-sky-2');
+ }else {info=m.airglow[r.model];q=await array(info.bands[r.band]);state=orbitState(sun,r.height,r.orbit,r.orbitalPhaseDeg,Date.parse(r.utc)/1000,r.evolve?Date.parse(r.epoch)/1000:null);result.state=state;for(const key of ['lit','hmin','theta'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff','view'])result[key]=new Uint8Array(np);}
+ const {sampleMap}=await import('./sky-core.mjs?v=north-phase-1');
  for(let i=0;i<np;i++){
  const v=pixVector(r.nside,i);
  if(r.kind!=='airglow'){
