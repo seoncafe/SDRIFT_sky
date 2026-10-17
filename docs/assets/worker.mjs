@@ -1,5 +1,5 @@
 // Modified 2026-10-17. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,airglowMjy,D,mod} from './sky-core.mjs?v=elv20-1';
+import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,airglowMjy,toEquatorial,D,mod} from './sky-core.mjs?v=galactic-sky-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -30,9 +30,9 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
   delta=mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI;result.delta=delta;
   for(const key of ['zodiacal','dgl','airglow','airglowPhoton']){result[key]=new Float32Array(np);result[key].fill(NaN);}
  }
- const {sampleMap}=await import('./sky-core.mjs?v=elv20-1');
+ const {sampleMap}=await import('./sky-core.mjs?v=galactic-sky-1');
  for(let i=0;i<np;i++){
- const v=pixVector(r.nside,i);
+ const v=toEquatorial(pixVector(r.nside,i),r.coords);
  if(!air){
  const masked=(r.anti&&v.reduce((s,x,j)=>s+x*sun[j],0)>Math.cos(r.elongation*D))||(moon&&r.moonAvoid&&v.reduce((s,x,j)=>s+x*moon[j],0)>Math.cos(r.moonAngle*D));
  const z=q?sampleMap(q,128,rotation(v,-delta)):0,g=dgl?sampleMap(dgl,128,v):0;

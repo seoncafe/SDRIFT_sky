@@ -52,7 +52,7 @@ python3 sdrift_sky.py --ra 0 --dec 60 --date 2026-10-13T12:00:00Z \
 공유합니다. 기본 Sun separation은 90°, Moon separation은 60°입니다.
 `--sun-separation 100 --moon-separation 70`처럼 변경하거나
 `--no-sun-avoidance`, `--no-moon-avoidance`로 각각 끕니다.
-Contour는 기본 0.5 mag이고 `--contour-step`으로 0.1–1.0 mag를 선택합니다.
+Contour는 기본 0.2 mag이고 `--contour-step`으로 0.1–1.0 mag를 선택합니다.
 FITS.gz는 회피 영역을 NaN으로 저장합니다. 합산 FITS에는 두 성분도 저장됩니다.
 
 좌표 질의는 주어진 방향에 대해 intensity를 내삽한 **회피 마스크 적용 전** 밝기와
@@ -69,7 +69,7 @@ sky = SkyModel()
 point = sky.point(0, 60, "2026-10-13T12:00:00Z", band="VIS", model="zodiacal_dgl")
 print(point)
 result = sky.sky_map("2026-10-13T12:00:00Z", nside=128, band="VIS", model="zodiacal_dgl")
-figure = sky.plot(result, target=(0, 60), contour_step=0.5)
+figure = sky.plot(result, target=(0, 60), contour_step=0.2)
 figure.savefig("sky.pdf", bbox_inches="tight")
 ```
 
@@ -94,7 +94,7 @@ GCRS 데이터이며 관측지·위성 시차나 달빛 산란은 포함하지 �
   GLOW + PALACE night layers입니다. 평균 태양 활동 모델로 날짜는 사용하지 않습니다.
 - NSIDE 기본값은 128입니다. 저성능 기기에서는 32 또는 64로 선택하십시오.
   변경 시 자동 계산하며, `중지` 버튼으로 취소할 수 있습니다.
-- RA는 왼쪽으로 증가하며 모든 지도에서 contour 간격은 기본 0.5 mag이며, 0.1–1.0 mag를 0.1 mag 단위로 선택할 수 있습니다. 선택을 바꾸면 기존 지도에 바로 적용되고 PDF/PNG도 같은 간격으로 저장됩니다.
+- RA는 왼쪽으로 증가하며 모든 지도에서 contour 간격은 기본 0.2 mag이며, 0.1–1.0 mag를 0.1 mag 단위로 선택할 수 있습니다. 선택을 바꾸면 기존 지도에 바로 적용되고 PDF/PNG도 같은 간격으로 저장됩니다.
   큰 AB magnitude의 색은 어둡습니다. 지도 위 포인터로 RA, DEC와 값을 읽습니다.
 - Contour level마다 기존 방식으로 라벨을 표시합니다. 낮은 level에서 높은 level 순으로 선굵기를 0.6–2.2 px로 증가시키며, 화면과 PDF/PNG 저장에 동일하게 적용됩니다.
 - FITS.gz: RING / Equatorial HEALPix BINTABLE. Airglow에는 EARTH_OCCULTED,
@@ -172,3 +172,9 @@ Airglow와 동일한 궤도·각도·ELV 및 태양·달 회피 조건을 사용
 실행하십시오. [사용법](README_airglow_orbit.md#zodiacal-light--dgl--airglow-합산).
 
 웹과 Python 궤도 뷰어의 기본 모드는 **Zodiacal light + DGL + Airglow**입니다.
+
+좌표계 선택으로 **Equatorial (RA, DEC)**와 **Galactic (l, b)** 지도를
+전환할 수 있습니다. Python 궤도 GUI는 `--coords galactic`으로 시작하며
+두 Python CLI와 `sky_map(..., coords='galactic')`도 지원합니다. FITS의
+COORDSYS와 실제 픽셀 격자는 선택한 좌표계로 저장됩니다.
+Python 실행에는 공통 변환 모듈 `sky_coordinates.py`도 같은 폴더에 두십시오.

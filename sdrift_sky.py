@@ -10,6 +10,7 @@ import warnings
 from pathlib import Path
 import numpy as np
 import healpy as hp
+from sky_coordinates import COORD_SYSTEMS, check_coords, from_equatorial, to_equatorial
 
 DEFAULT_DATA = Path(__file__).resolve().parent / 'docs' / 'data'
 MODELS = ('zodiacal', 'dgl', 'zodiacal_dgl')
@@ -129,12 +130,14 @@ class SkyModel:
                     sun_avoidance=r['sun_avoidance'], minimum_sun_separation_deg=r['sun_separation'],
                     moon_avoidance=r['moon_avoidance'], minimum_moon_separation_deg=r['moon_separation'])
 
-    def sky_map(self, date, nside=128, **settings):
+    def sky_map(self, date, nside=128, coords='equatorial', **settings):
+        check_coords(coords)
         if not hp.isnsideok(nside, nest=True):
             raise ValueError('NSIDE must be a positive power of two')
         xyz = np.stack(hp.pix2vec(nside, np.arange(hp.nside2npix(nside))), axis=-1)
-        r = self.evaluate(xyz, date, **settings)
+        r = self.evaluate(to_equatorial(xyz, coords), date, **settings)
         r['nside'] = nside
+        r['coords'] = coords
         return r
 
     def save_fits(self, result, filename):
@@ -160,9 +163,9 @@ class SkyModel:
         if not path.name.endswith('.fits.gz'): raise ValueError('FITS output must end with .fits.gz')
         path.parent.mkdir(parents=True, exist_ok=True)
         hp.write_map(str(path), arrays, column_names=names, column_units=units, dtype=np.float32,
-                     coord='C', overwrite=True, extra_header=headers)
+                     coord='G' if r.get('coords')=='galactic' else 'C', overwrite=True, extra_header=headers)
 
-    def plot(self, result, target=None, contour_step=.5):
+    def plot(self, result, target=None, contour_step=.2):
         """Plot the masked sky and Sun/Moon/target positions; return a Figure."""
         import matplotlib.pyplot as plt
         if not any(np.isclose(contour_step, i/10) for i in range(1, 11)):
@@ -174,10 +177,10 @@ class SkyModel:
         fig = plt.figure(figsize=(12, 7))
         wavelengths = self.manifest['bands'][r['band']]
         label={'zodiacal':'Zodiacal light','dgl':'DGL','zodiacal_dgl':'Zodiacal light + DGL'}[r['model']]
-        title = f"{label} | {r['band']} {wavelengths[0]}–{wavelengths[1]} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}"
+        title = f"{r.get('coords','equatorial').title()} | {label} | {r['band']} {wavelengths[0]}–{wavelengths[1]} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}"
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore',message='Ignoring specified arguments in this call because figure.*',category=UserWarning)
-            projected = hp.mollview(mag, fig=fig.number, coord='C', cmap='viridis_r', min=lo, max=hi,
+            projected = hp.mollview(mag, fig=fig.number, coord='G' if r.get('coords')=='galactic' else 'C', cmap='viridis_r', min=lo, max=hi,
                                     badcolor='white', bgcolor='white', title=title, unit='AB mag / arcsec²', return_projected_map=True)
         hp.graticule(dpar=30, dmer=30)
         ax = fig.axes[0]; xmin, xmax, ymin, ymax = ax.proj.get_extent()
@@ -188,17 +191,18 @@ class SkyModel:
             ax.clabel(contours, inline=True, fmt='%.1f', fontsize=8)
         for body, name, marker, color, enabled, angle in [(r['sun'], 'Sun', '*', 'red', r['sun_avoidance'], r['sun_separation']),
                                                          (r['moon'], 'Moon', 'o', '#b56d00', r['moon_avoidance'], r['moon_separation'])]:
-            ra, dec = coordinates(body)
+            ra, dec = coordinates(from_equatorial(body, r.get('coords','equatorial')))
             if enabled and 0 < angle < 180:
-                ring = boundary(body, angle)
+                ring = from_equatorial(boundary(body, angle).T,r.get('coords','equatorial')).T
                 hp.projplot(np.rad2deg(np.arctan2(ring[1], ring[0])), np.rad2deg(np.arcsin(np.clip(ring[2], -1, 1))),
                             lonlat=True, color=color, linestyle='--', linewidth=1.4)
             hp.projplot(ra, dec, lonlat=True, marker=marker, color=color, markersize=10, markeredgecolor='black', zorder=12)
             hp.projtext(ra, dec, name, lonlat=True, color=color, fontsize=9, fontweight='bold', ha='right' if name=='Sun' else 'left', va='bottom')
         if target is not None:
             ra, dec = target
-            hp.projplot(ra % 360, dec, lonlat=True, marker='x', color='#009cff', markersize=10, markeredgewidth=2, zorder=13)
-            hp.projtext(ra % 360, dec, ' Target', lonlat=True, color='#006bbb', fontsize=9)
+            plot_ra, plot_dec = coordinates(from_equatorial(vector(ra,dec), r.get('coords','equatorial')))
+            hp.projplot(plot_ra, plot_dec, lonlat=True, marker='x', color='#009cff', markersize=10, markeredgewidth=2, zorder=13)
+            hp.projtext(plot_ra, plot_dec, ' Target', lonlat=True, color='#006bbb', fontsize=9)
             p = self.point(ra, dec, r['utc'], band=r['band'], model=r['model'], sun_avoidance=r['sun_avoidance'],
                            sun_separation=r['sun_separation'], moon_avoidance=r['moon_avoidance'], moon_separation=r['moon_separation'])
             label = f"{p['ab_mag_arcsec2']:.3f} mag / arcsec² at (RA, DEC) = ({ra % 360:.2f}°, {dec:.2f}°)"
@@ -214,13 +218,14 @@ def main():
     parser.add_argument('--date', '--utc', required=True, help='UTC ISO date/time, e.g. 2026-10-13T12:00:00Z')
     parser.add_argument('--band', choices=BANDS, default='VIS')
     parser.add_argument('--model', choices=MODELS, default='zodiacal_dgl')
+    parser.add_argument('--coords', choices=COORD_SYSTEMS, default='equatorial')
     parser.add_argument('--nside', type=int, default=128)
     parser.add_argument('--data-dir', type=Path, default=DEFAULT_DATA)
     parser.add_argument('--sun-separation', type=float, default=90.)
     parser.add_argument('--moon-separation', type=float, default=60.)
     parser.add_argument('--no-sun-avoidance', action='store_true')
     parser.add_argument('--no-moon-avoidance', action='store_true')
-    parser.add_argument('--contour-step', type=float, choices=[i/10 for i in range(1, 11)], default=.5)
+    parser.add_argument('--contour-step', type=float, choices=[i/10 for i in range(1, 11)], default=.2)
     parser.add_argument('--show', action='store_true', help='Open an interactive map window')
     parser.add_argument('--pdf', type=Path, help='Save displayed map as PDF')
     parser.add_argument('--png', type=Path, help='Save displayed map as PNG')
@@ -243,7 +248,7 @@ def main():
             clean = {k: (None if isinstance(v, float) and not np.isfinite(v) else v) for k, v in point.items()}
             args.json.write_text(json.dumps(clean, indent=2, allow_nan=False)+'\n')
         if args.show or args.pdf or args.png or args.fits:
-            result = sky.sky_map(args.date, args.nside, **settings)
+            result = sky.sky_map(args.date, args.nside, coords=args.coords, **settings)
             if args.fits: sky.save_fits(result, args.fits)
             if args.show or args.pdf or args.png:
                 if not args.show:

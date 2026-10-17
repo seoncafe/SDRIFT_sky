@@ -4,6 +4,11 @@
 export const R=6371, D=Math.PI/180, ARC=206264.80624709636;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const mod=(x,n)=>((x%n)+n)%n;
+// Same Astropy ICRS-axis -> Galactic basis rotation as sky_coordinates.py.
+const EQ_TO_GAL=[[-0.054875657712591654,-0.8734370519556157,-0.48383507361671546],[0.49410943719272676,-0.4448297212232951,0.7469821839866675],[-0.8676661375596576,-0.19807633727300059,0.4559838136873016]];
+export function fromEquatorial(v,coords='equatorial'){return coords==='galactic'?EQ_TO_GAL.map(a=>a.reduce((s,x,j)=>s+x*v[j],0)):v;}
+export function toEquatorial(v,coords='equatorial'){return coords==='galactic'?[0,1,2].map(j=>EQ_TO_GAL.reduce((s,a,i)=>s+a[j]*v[i],0)):v;}
+
 export function ring(n,r){
   const np=12*n*n;
   if(r<n) return {start:2*r*(r-1),count:4*r,z:1-r*r/(3*n*n),offset:.5};
@@ -135,7 +140,7 @@ export function fitsMap(result,request,manifest){
   if(request.kind==='zodiacal_dgl')names.push('ZODIACAL_MJY_SR','DGL_MJY_SR');
   if(total){names[1]='INTENSITY_MJY_SR';names.push('ZODIACAL_MJY_SR','DGL_MJY_SR','AIRGLOW_MJY_SR','AIRGLOW_PHOTON_RADIANCE');}
   const primary=header([['SIMPLE',true],['BITPIX',8],['NAXIS',0],['EXTEND',true]]);
-  const rows=[['XTENSION','BINTABLE'],['BITPIX',8],['NAXIS',2],['NAXIS1',names.length*4],['NAXIS2',n],['PCOUNT',0],['GCOUNT',1],['TFIELDS',names.length],['PIXTYPE','HEALPIX'],['ORDERING','RING'],['NSIDE',request.nside],['FIRSTPIX',0],['LASTPIX',n-1],['INDXSCHM','IMPLICIT'],['COORDSYS','C'],['BAND',request.band],['WEBVER',2],['CREATOR','S-DRIFT HTML'],['DATATYPE',request.kind.toUpperCase()],['BANDMIN',manifest.bands[request.band][0]/1000],['BANDMAX',manifest.bands[request.band][1]/1000],['PHOTCNT',true]];
+  const rows=[['XTENSION','BINTABLE'],['BITPIX',8],['NAXIS',2],['NAXIS1',names.length*4],['NAXIS2',n],['PCOUNT',0],['GCOUNT',1],['TFIELDS',names.length],['PIXTYPE','HEALPIX'],['ORDERING','RING'],['NSIDE',request.nside],['FIRSTPIX',0],['LASTPIX',n-1],['INDXSCHM','IMPLICIT'],['COORDSYS',request.coords==='galactic'?'G':'C'],['BAND',request.band],['WEBVER',2],['CREATOR','S-DRIFT HTML'],['DATATYPE',request.kind.toUpperCase()],['BANDMIN',manifest.bands[request.band][0]/1000],['BANDMAX',manifest.bands[request.band][1]/1000],['PHOTCNT',true]];
   names.forEach((name,i)=>{rows.push(['TTYPE'+(i+1),name],['TFORM'+(i+1),'1E']);});
   rows.push(['TUNIT1','mag/arcsec2'],['TUNIT2',air&&!total?'photons/s/cm2/sr':'MJy/sr']);
   if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['TUNIT10','deg'],['ELVMIN',request.minElvDeg??20],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],['DATE-UTC',request.utc.replace('Z','')],['ORBIT',request.orbit],['ORBMODEL','IDEAL SOLAR CIRCLE'],['PHASE',result.state.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V1'],['PHASE0',request.orbitalPhaseDeg],['PHMODE',request.evolve?'EPOCH':'MANUAL'],['EPOCH',request.epoch],['PERIOD',result.state.period],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','GEOCENTRIC']);

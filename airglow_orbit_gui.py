@@ -12,7 +12,7 @@ from airglow_orbit import AirglowOrbitModel, ORBIT_TYPES, BANDS, DEFAULT_DATA, u
 
 
 class Viewer:
-    def __init__(self, root, data_dir=DEFAULT_DATA, kind='total'):
+    def __init__(self, root, data_dir=DEFAULT_DATA, kind='total', coords='equatorial'):
         self.root=root; self.sky=AirglowOrbitModel(data_dir); self.result=None; self.busy=False
         self.messages=queue.Queue(); self.vars={}
         root.title('S-DRIFT | orbit sky background'); root.geometry('1380x1000')
@@ -31,6 +31,8 @@ class Viewer:
         for text,sec in [('-1 h',-3600),('-1 min',-60),('+1 min',60),('+1 h',3600)]:
             ttk.Button(f,text=text,command=lambda n=sec:self.shift(n)).pack(side='left',padx=3)
         f=row(); entry(f,'kind','Map','Zodiacal + DGL + Airglow' if kind=='total' else 'Airglow',('Airglow','Zodiacal + DGL + Airglow'),28)
+        coordinate=entry(f,'coords','Coordinates',coords,('equatorial','galactic'),12)
+        coordinate.bind('<<ComboboxSelected>>',lambda _:self.update())
         f=row(); entry(f,'orbit','Orbit','dawn-dusk',ORBIT_TYPES,16)
         entry(f,'height','H (km)','650',width=7); entry(f,'orbital_phase_deg','북쪽 기준 궤도 위상 φ (°)','0',width=7)
         entry(f,'band','Band','VIS',BANDS,6); entry(f,'model','Model','combined',('combined','glow'),10)
@@ -45,7 +47,7 @@ class Viewer:
         entry(f,'sun_separation','Min separation (deg)','90',width=6)
         ttk.Checkbutton(f,text='Moon avoidance',variable=self.moon).pack(side='left')
         entry(f,'moon_separation','Min separation (deg)','60',width=6)
-        combo=entry(f,'contour','Contour (mag)','0.5',tuple(f'{i/10:.1f}' for i in range(1,11)),5)
+        combo=entry(f,'contour','Contour (mag)','0.2',tuple(f'{i/10:.1f}' for i in range(1,11)),5)
         combo.bind('<<ComboboxSelected>>',lambda _:self.draw())
         f=row(); self.button=ttk.Button(f,text='Calculate map',command=self.update);self.button.pack(side='left')
         for kind in ['pdf','png','fits.gz']:
@@ -78,7 +80,7 @@ class Viewer:
         except ValueError as exc: messagebox.showerror('Input',str(exc)); return
         self.busy=True; self.button.configure(state='disabled'); self.status.set('Calculating… (first Numba compilation may take several seconds)')
         def work():
-            try:self.messages.put(('ok',self.sky.sky_map(v['date'],nside=nside,**settings)))
+            try:self.messages.put(('ok',self.sky.sky_map(v['date'],nside=nside,coords=v['coords'],**settings)))
             except Exception as exc:self.messages.put(('error',str(exc)))
         threading.Thread(target=work,daemon=True).start()
 
@@ -102,12 +104,13 @@ class Viewer:
         import healpy as hp
         ra=(-np.rad2deg(event.xdata))%360; dec=np.rad2deg(event.ydata)
         i=hp.ang2pix(self.result['nside'],ra,dec,lonlat=True);r=self.result
-        self.status.set(f"{r['mag'][i]:.3f} mag at (RA, DEC) = ({ra:.2f}, {dec:.2f}) | zenith {r['theta'][i]:.2f} deg | ELV {r['elv'][i]:.2f} deg"+(' | excluded' if not r['view'][i] else ' | Earth' if r['earth'][i] else ' | partial model' if not r['valid'][i] else ''))
+        labels='l, b' if r.get('coords')=='galactic' else 'RA, DEC'
+        self.status.set(f"{r['mag'][i]:.3f} mag at ({labels}) = ({ra:.2f}, {dec:.2f}) | zenith {r['theta'][i]:.2f} deg | ELV {r['elv'][i]:.2f} deg"+(' | excluded' if not r['view'][i] else ' | Earth' if r['earth'][i] else ' | partial model' if not r['valid'][i] else ''))
 
     def save(self,kind):
         if self.result is None:return
         r=self.result;stamp=r['utc'].replace('-','').replace(':','').replace('T','_').rstrip('Z')
-        name=f"{r['kind']}_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_elv{r['min_elv_deg']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
+        name=f"{r['kind']}_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_elv{r['min_elv_deg']:g}_{r['model']}_{r.get('coords','equatorial')}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
         path=filedialog.asksaveasfilename(defaultextension='.'+kind,initialfile=name+'.'+kind)
         if path:
             if kind=='fits.gz':self.sky.save_fits(r,path)
@@ -115,7 +118,7 @@ class Viewer:
             self.status.set('Saved '+path)
 
 
-def main(data_dir=DEFAULT_DATA, kind='total'):
-    root=tk.Tk();Viewer(root,data_dir,kind=kind);root.mainloop()
+def main(data_dir=DEFAULT_DATA, kind='total', coords='equatorial'):
+    root=tk.Tk();Viewer(root,data_dir,kind=kind,coords=coords);root.mainloop()
 
 if __name__=='__main__':main()

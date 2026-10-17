@@ -18,7 +18,7 @@ python3 airglow_orbit.py --gui
 `python3 airglow_gui.py`도 새 뷰어를 엽니다. 그 폴더의 이전 H/SZA 기준 뷰어는
 `python3 airglow_gui.py --reference`로 실행합니다. GitHub 배포에는 새 뷰어만 포함합니다.
 GUI는 현재 UTC와 Zodiacal + DGL + Airglow 합산 모드로 시작합니다. Orbit, UTC, H, 북쪽 기준 위상 φ, band, 최소 ELV를 선택하고
-Calculate map을 누릅니다. contour는 0.1-1.0 mag, 기본 0.5 mag입니다.
+Calculate map을 누릅니다. contour는 0.1-1.0 mag, 기본 0.2 mag입니다.
 Tkinter와 그래픽 데스크톱이 필요합니다. `python3 -m tkinter`로 확인하고,
 Tkinter가 없다면 Python 배포판에 맞는 Tcl/Tk 패키지를 설치합니다.
 macOS Homebrew Python에서는 해당 Python 버전의 `python-tk@3.x`를 사용합니다.
@@ -128,7 +128,7 @@ from airglow_orbit import AirglowOrbitModel
 sky = AirglowOrbitModel()
 r = sky.sky_map('2026-10-17T00:00:00Z', kind='airglow', orbit='noon-midnight',
                 orbital_phase_deg=90, height=650, band='VIS', nside=128, min_elv_deg=20)
-fig = sky.plot(r, contour_step=0.5)
+fig = sky.plot(r, contour_step=0.2)
 fig.savefig('map.pdf')
 sky.save_fits(r, 'map.fits.gz')
 ```
@@ -189,3 +189,32 @@ Airglow 모델이 불완전한 방향은 합산 지도에도 빗금으로 표시
 `AIRGLOW_PHOTON_RADIANCE`를 저장합니다. 모델 유효성 등 기존 진단 열도 유지합니다.
 총합 결과의 API `flux` 단위는 MJy/sr이고 Airglow 단독의 `flux`는 photons/s/cm²/sr입니다.
 `airglow_photon_radiance`에 합산 전 Airglow 광자 radiance도 보관합니다.
+
+## 표시 좌표계: Equatorial / Galactic
+
+웹의 **좌표계**, Python GUI의 **Coordinates**에서 `equatorial` 또는
+`galactic`을 선택합니다. 기본은 적도 좌표 RA, DEC이며 은하 좌표에서는
+경도 l, 위도 b를 표시합니다. 태양·달·천정, ELV 및 회피 경계, contour도
+동일한 좌표계로 변환합니다. 웹에서는 다섯 모델 모두 지원합니다.
+
+```sh
+python3 airglow_orbit.py --gui --coords galactic
+python3 airglow_orbit.py --coords galactic --date 2026-10-17T00:00:00Z \
+  --orbit noon-midnight --orbital-phase-deg 90 --kind total \
+  --fits total_VIS_nside128_20261017_galactic.fits.gz --png total_galactic.png
+```
+
+API: `sky.sky_map(date, coords='galactic', ...)`. `sdrift_sky.py`의
+Zodiacal/DGL CLI도 `--coords galactic`을 지원합니다. `--ra`, `--dec`로
+입력하는 표적과 `point()` 질의는 선택한 지도 좌표계와 무관하게 적도 좌표입니다.
+
+은하 좌표 픽셀 중심을 적도 좌표 시선으로 변환하여 같은 물리 모델을 평가합니다.
+따라서 FITS는 실제 선택 좌표계의 RING HEALPix이며 헤더 `COORDSYS`는
+적도 좌표에서 C, 은하 좌표에서 G입니다. 마스크와 각 성분도 같은 픽셀 격자입니다.
+프레임별 픽셀 중심이 달라 단순한 픽셀 순서 치환은 아닙니다.
+
+변환은 [Astropy ICRS–Galactic 회전](https://docs.astropy.org/en/stable/coordinates/transforming.html)의
+고정 행렬을 Python·웹에 동일하게 적용합니다. 기존 지구 중심 태양·달 벡터의
+축을 회전하며 추가적인 시차나 광행차 보정은 적용하지 않습니다. API의 `sun`,
+`moon`, `state.zenith` 및 FITS의 SUNRA/SUNDEC 등 RA·DEC 메타데이터는
+기존 적도 축 기준을 유지합니다. GUI·웹의 위치와 포인터 표시는 선택한 좌표계입니다.

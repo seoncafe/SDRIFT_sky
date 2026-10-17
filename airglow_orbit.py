@@ -11,6 +11,7 @@ from pathlib import Path
 import warnings
 import numpy as np
 import healpy as hp
+from sky_coordinates import COORD_SYSTEMS, from_equatorial
 from sdrift_sky import SkyModel, DEFAULT_DATA, BANDS, utc_time, coordinates, vector, boundary, ab_magnitude
 
 R = 6371.
@@ -222,14 +223,14 @@ class AirglowOrbitModel(SkyModel):
         for body, prefix in [(r['sun'], 'SUN'), (r['moon'], 'MOON'), (r['state']['zenith'], 'ZEN')]:
             ra, dec = coordinates(body); headers += [(prefix+'RA', ra), (prefix+'DEC', dec)]
         hp.write_map(str(path), [r[k] for k in keys], column_names=names, column_units=units, dtype=np.float32,
-                     coord='C', overwrite=True, extra_header=headers)
+                     coord='G' if r.get('coords')=='galactic' else 'C', overwrite=True, extra_header=headers)
 
-    def plot(self, r, contour_step=.5, figure=None):
+    def plot(self, r, contour_step=.2, figure=None):
         import matplotlib.pyplot as plt
         with plt.rc_context({'text.usetex': False, 'font.family': 'DejaVu Sans'}):
             return self._plot(r, contour_step, figure)
 
-    def _plot(self, r, contour_step=.5, figure=None):
+    def _plot(self, r, contour_step=.2, figure=None):
         import matplotlib.pyplot as plt
         if not any(np.isclose(contour_step, i/10) for i in range(1, 11)): raise ValueError('Contour step must be 0.1 ... 1.0')
         fig = figure if figure is not None else plt.figure(figsize=(13, 7.5))
@@ -253,6 +254,7 @@ class AirglowOrbitModel(SkyModel):
                 cs = ax.contour(xx, yy, good, levels=levels, colors='black', linewidths=np.linspace(.6, 2.2, len(levels)), alpha=.65)
                 ax.clabel(cs, fmt='%.1f', fontsize=8)
         def project(v):
+            v = from_equatorial(np.asarray(v).T,r.get('coords','equatorial')).T
             return -(np.arctan2(v[1], v[0])+np.pi)%(2*np.pi)-np.pi, np.arcsin(np.clip(v[2], -1, 1))
         def ring(body, angle, color):
             if not 0 < angle < 180: return
@@ -266,10 +268,10 @@ class AirglowOrbitModel(SkyModel):
         ring(r['state']['zenith'], r['state']['limb_zenith_deg']-r['min_elv_deg'], '#008060')
         a,b = project(r['state']['zenith']); ax.plot(a,b,'o',color='#1579bf',ms=4); ax.annotate('Zenith',(a,b),xytext=(6,-12),textcoords='offset points',color='#1579bf',fontsize=9)
         ax.grid(alpha=.3); ticks = np.arange(-150, 180, 30)
-        ax.set_xticks(np.deg2rad(ticks), [f'{int(-t)%360}°' for t in ticks]); ax.set_xlabel('RA (deg; increases to the left)'); ax.set_ylabel('DEC (deg)')
+        ax.set_xticks(np.deg2rad(ticks), [f'{int(-t)%360}°' for t in ticks]); ax.set_xlabel('l (Galactic longitude; deg)' if r.get('coords')=='galactic' else 'RA (deg; increases to the left)'); ax.set_ylabel('b (deg)' if r.get('coords')=='galactic' else 'DEC (deg)')
         lo_nm, hi_nm = self.manifest['bands'][r['band']]
         label = 'Zodiacal light + DGL + Airglow' if r['kind'] == 'total' else 'Airglow'
-        fig.suptitle(f"{label} | {r['band']} {lo_nm:g}-{hi_nm:g} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}\n"
+        fig.suptitle(f"{r.get('coords','equatorial').title()} | {label} | {r['band']} {lo_nm:g}-{hi_nm:g} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}\n"
                      f"{r['orbit']} | H={r['height']:g} km | φ={r['state']['orbital_phase_deg']:.1f}° | SZA={r['state']['sza']:.1f}° | ELV ≥ {r['min_elv_deg']:g}°", fontsize=11)
         fig.colorbar(im, ax=ax, orientation='horizontal', fraction=.045, pad=.12, label='AB mag / arcsec²')
         fig.text(.5,.025, f"Sun separation ≥ {r['sun_separation']:g}° ({'on' if r['sun_avoidance'] else 'off'}); Moon ≥ {r['moon_separation']:g}° ({'on' if r['moon_avoidance'] else 'off'}) | ELV ≥ {r['min_elv_deg']:g}° | Gray: Earth; hatch: partial model; pale: excluded\nIdeal solar-following circle; mean emission table; no UV absorption or twilight history", ha='center', fontsize=8)
@@ -289,6 +291,7 @@ def main():
     p.add_argument('--band', choices=BANDS, default='VIS')
     p.add_argument('--kind', choices=['airglow','total'], default='total', help='Total = zodiacal + DGL + airglow')
     p.add_argument('--model', choices=['combined','glow'], default='combined')
+    p.add_argument('--coords', choices=COORD_SYSTEMS, default='equatorial')
     p.add_argument('--nside', type=int, default=128)
     p.add_argument('--data-dir', type=Path, default=DEFAULT_DATA)
     p.add_argument('--engine', choices=['auto','numba','numpy'], default='auto')
@@ -296,14 +299,14 @@ def main():
     p.add_argument('--moon-separation', type=float, default=60.)
     p.add_argument('--no-sun-avoidance', action='store_true')
     p.add_argument('--no-moon-avoidance', action='store_true')
-    p.add_argument('--contour-step', type=float, choices=[i/10 for i in range(1,11)], default=.5)
+    p.add_argument('--contour-step', type=float, choices=[i/10 for i in range(1,11)], default=.2)
     p.add_argument('--ra', type=float); p.add_argument('--dec', type=float)
     p.add_argument('--show', action='store_true')
     for kind in ['pdf','png','fits']: p.add_argument('--'+kind, type=Path)
     a = p.parse_args()
     if a.gui:
         from airglow_orbit_gui import main as gui
-        gui(a.data_dir, kind=a.kind); return
+        gui(a.data_dir, kind=a.kind, coords=a.coords); return
     try:
         sky = AirglowOrbitModel(a.data_dir)
         settings = dict(band=a.band, model=a.model, kind=a.kind, height=a.height, orbit=a.orbit, orbital_phase_deg=a.orbital_phase_deg, epoch=a.epoch,
@@ -313,7 +316,7 @@ def main():
         if (a.ra is None) != (a.dec is None): p.error('Provide both --ra and --dec')
         if a.ra is not None: print(sky.point(a.ra,a.dec,a.date,**settings))
         if a.pdf or a.png or a.fits or a.show or a.ra is None:
-            r = sky.sky_map(a.date, nside=a.nside, **settings)
+            r = sky.sky_map(a.date, nside=a.nside, coords=a.coords, **settings)
             print(f"{r['orbit']} | UTC {r['utc']} | north phase {r['state']['orbital_phase_deg']:.3f} deg | SZA {r['state']['sza']:.3f} deg | {r['engine']} | {int(r['view'].sum())} allowed pixels")
             if a.fits: sky.save_fits(r,a.fits)
             if a.pdf or a.png or a.show:
