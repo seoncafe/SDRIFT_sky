@@ -178,3 +178,7 @@ Airglow와 동일한 궤도·각도·ELV 및 태양·달 회피 조건을 사용
 두 Python CLI와 `sky_map(..., coords='galactic')`도 지원합니다. FITS의
 COORDSYS와 실제 픽셀 격자는 선택한 좌표계로 저장됩니다.
 Python 실행에는 공통 변환 모듈 `sky_coordinates.py`도 같은 폴더에 두십시오.
+
+Zodiacal, DGL, Zodi+DGL에서도 모든 궤도·위상·고도·ELV 설정을 사용할 수 있습니다.
+Python 통합 GUI/CLI는 `airglow_orbit.py --kind zodiacal`, `--kind dgl`,
+`--kind zodiacal_dgl`을 지원하며, 해당 성분의 밝기에 공통 관측 조건을 적용합니다.

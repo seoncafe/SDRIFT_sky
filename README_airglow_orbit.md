@@ -218,3 +218,28 @@ Zodiacal/DGL CLI도 `--coords galactic`을 지원합니다. `--ra`, `--dec`로
 축을 회전하며 추가적인 시차나 광행차 보정은 적용하지 않습니다. API의 `sun`,
 `moon`, `state.zenith` 및 FITS의 SUNRA/SUNDEC 등 RA·DEC 메타데이터는
 기존 적도 축 기준을 유지합니다. GUI·웹의 위치와 포인터 표시는 선택한 좌표계입니다.
+
+## Zodiacal / DGL / Zodi+DGL의 궤도 관측 옵션
+
+웹과 Python 궤도 GUI의 **모든 모델**에서 궤도, 위성 고도, 북쪽 기준 위상,
+기준 UTC부터 위상 자동 진행, 최소 ELV, 태양·달 회피를 공통으로 설정합니다.
+기본값은 H=650 km, φ=0°, ELV >= 20°, Sun separation >= 90°, Moon >= 60°입니다.
+Zodiacal/DGL 밝기 자체는 기존 모델을 유지합니다. 궤도는 관측 가능 영역과
+천정·ELV 경계를 정하며, 이들 모드에서는 Airglow를 적분하거나 더하지 않습니다.
+Airglow 성분 선택은 Airglow / total 모드에서만 적용됩니다.
+
+```sh
+python3 airglow_orbit.py --gui --kind dgl
+python3 airglow_orbit.py --kind zodiacal_dgl --coords galactic \
+  --orbit noon-midnight --orbital-phase-deg 90 --height 650 --min-elv 20 \
+  --date 2026-10-17T00:00:00Z --fits zodi_dgl_nside128_20261017_galactic.fits.gz
+```
+
+`--kind`는 `zodiacal`, `dgl`, `zodiacal_dgl`, `airglow`, `total`을 지원합니다.
+`AirglowOrbitModel().sky_map(date, kind='dgl', orbit='dawn-dusk', ...)`로 API에서도
+사용할 수 있습니다. 배경광 모드의 FITS에는 기존 intensity 및 각 성분에 더해
+EARTH_OCCULTED, MODEL_VALID, MIN_ALTITUDE, ZENITH_ANGLE, VIEW_ALLOWED, ELV와
+궤도 메타데이터를 저장합니다. MODEL_VALID는 이 모드에서 지구 차폐 여부를
+나타내며 Airglow 모델 유효성이나 UV 성분 완전성을 판정하는 플래그가 아닙니다.
+`VIEW_ALLOWED`와 지구 차폐를 함께 확인하십시오. 기존 궤도 없는 SkyModel 및
+`sdrift_sky.py`는 그대로 사용할 수 있고, 궤도 옵션은 위 통합 뷰어/CLI로 실행합니다.

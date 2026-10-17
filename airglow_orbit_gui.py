@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from airglow_orbit import AirglowOrbitModel, ORBIT_TYPES, BANDS, DEFAULT_DATA, utc_time
+from airglow_orbit import AirglowOrbitModel, ORBIT_TYPES, BANDS, DEFAULT_DATA, MAP_LABELS, utc_time
 
 
 class Viewer:
@@ -30,12 +30,13 @@ class Viewer:
         ttk.Button(f,text='Now',command=self.now).pack(side='left',padx=4)
         for text,sec in [('-1 h',-3600),('-1 min',-60),('+1 min',60),('+1 h',3600)]:
             ttk.Button(f,text=text,command=lambda n=sec:self.shift(n)).pack(side='left',padx=3)
-        f=row(); entry(f,'kind','Map','Zodiacal + DGL + Airglow' if kind=='total' else 'Airglow',('Airglow','Zodiacal + DGL + Airglow'),28)
+        f=row(); selection=entry(f,'kind','Map',MAP_LABELS[kind],tuple(MAP_LABELS.values()),28)
+        selection.bind('<<ComboboxSelected>>',lambda _:self.update())
         coordinate=entry(f,'coords','Coordinates',coords,('equatorial','galactic'),12)
         coordinate.bind('<<ComboboxSelected>>',lambda _:self.update())
         f=row(); entry(f,'orbit','Orbit','dawn-dusk',ORBIT_TYPES,16)
         entry(f,'height','H (km)','650',width=7); entry(f,'orbital_phase_deg','북쪽 기준 궤도 위상 φ (°)','0',width=7)
-        entry(f,'band','Band','VIS',BANDS,6); entry(f,'model','Model','combined',('combined','glow'),10)
+        entry(f,'band','Band','VIS',BANDS,6); self.component=entry(f,'model','Model','combined',('combined','glow'),10)
         entry(f,'nside','NSIDE','128',('16','32','64','128'),5)
         f=row()
         entry(f,'min_elv_deg','Min ELV (deg)','20.0',width=6)
@@ -53,7 +54,8 @@ class Viewer:
         for kind in ['pdf','png','fits.gz']:
             ttk.Button(f,text='Save '+kind.upper(),command=lambda k=kind:self.save(k)).pack(side='left',padx=5)
         ttk.Label(controls,text='Ideal solar-following circles. Both: φ=0 projected north, 180 south. NM: φ=90 midnight, 270 noon. Zenith: 0 up, 90 horizontal, 180 down.').pack(anchor='w')
-        ttk.Label(controls,text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon is geocentric (no spacecraft parallax).').pack(anchor='w')
+        self.model_note=ttk.Label(controls,text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon is geocentric (no spacecraft parallax).')
+        self.model_note.pack(anchor='w')
         self.status=tk.StringVar(value='Preparing map'); ttk.Label(root,textvariable=self.status,padding=8).pack(fill='x')
         self.figure=Figure(figsize=(13,7.5)); self.canvas=FigureCanvasTkAgg(self.figure,master=root)
         self.canvas.get_tk_widget().pack(fill='both',expand=True)
@@ -72,10 +74,13 @@ class Viewer:
         except ValueError as exc: messagebox.showerror('UTC',str(exc))
 
     def update(self):
+        selected={label:key for key,label in MAP_LABELS.items()}[self.vars['kind'].get()]
+        self.component.configure(state='readonly' if selected in ('airglow','total') else 'disabled')
+        self.model_note.configure(text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon is geocentric.' if selected in ('airglow','total') else 'Zodiacal rotates with date; DGL is fixed in the equatorial sky. Orbit, ELV and avoidance select observable directions.')
         if self.busy:return
         try:
             v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','min_elv_deg','sun_separation','moon_separation']}
-            settings.update(kind='total' if v['kind']=='Zodiacal + DGL + Airglow' else 'airglow',orbit=v['orbit'],band=v['band'],model=v['model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None)
+            settings.update(kind={label:key for key,label in MAP_LABELS.items()}[v['kind']],orbit=v['orbit'],band=v['band'],model=v['model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None)
             utc_time(v['date']); nside=int(v['nside'])
         except ValueError as exc: messagebox.showerror('Input',str(exc)); return
         self.busy=True; self.button.configure(state='disabled'); self.status.set('Calculating… (first Numba compilation may take several seconds)')

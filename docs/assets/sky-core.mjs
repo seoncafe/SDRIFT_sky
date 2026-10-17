@@ -138,6 +138,7 @@ export function fitsMap(result,request,manifest){
   const n=result.flux.length,air=['airglow','total'].includes(request.kind),total=request.kind==='total',hasDgl=['dgl','zodiacal_dgl'].includes(request.kind),hasZodi=['zodiacal','zodiacal_dgl'].includes(request.kind);
   const names=air?['AB_MAG_ARCSEC2','PHOTON_RADIANCE','SUNLIT_RADIANCE','EARTH_OCCULTED','MODEL_VALID','MIN_ALTITUDE','PHOTO_CUTOFF','ZENITH_ANGLE','VIEW_ALLOWED','ELV']:['AB_MAG_ARCSEC2','INTENSITY_MJY_SR'];
   if(request.kind==='zodiacal_dgl')names.push('ZODIACAL_MJY_SR','DGL_MJY_SR');
+  if(!air&&result.state)names.push('EARTH_OCCULTED','MODEL_VALID','MIN_ALTITUDE','ZENITH_ANGLE','VIEW_ALLOWED','ELV');
   if(total){names[1]='INTENSITY_MJY_SR';names.push('ZODIACAL_MJY_SR','DGL_MJY_SR','AIRGLOW_MJY_SR','AIRGLOW_PHOTON_RADIANCE');}
   const primary=header([['SIMPLE',true],['BITPIX',8],['NAXIS',0],['EXTEND',true]]);
   const rows=[['XTENSION','BINTABLE'],['BITPIX',8],['NAXIS',2],['NAXIS1',names.length*4],['NAXIS2',n],['PCOUNT',0],['GCOUNT',1],['TFIELDS',names.length],['PIXTYPE','HEALPIX'],['ORDERING','RING'],['NSIDE',request.nside],['FIRSTPIX',0],['LASTPIX',n-1],['INDXSCHM','IMPLICIT'],['COORDSYS',request.coords==='galactic'?'G':'C'],['BAND',request.band],['WEBVER',2],['CREATOR','S-DRIFT HTML'],['DATATYPE',request.kind.toUpperCase()],['BANDMIN',manifest.bands[request.band][0]/1000],['BANDMAX',manifest.bands[request.band][1]/1000],['PHOTCNT',true]];
@@ -161,11 +162,21 @@ export function fitsMap(result,request,manifest){
       ['DGL_SHA',m.bands[request.band].source_sha256],['CORRMOD','C2022_all'],['CORRSCL',m.metadata.scale],['BETAOP','MULTIPLY'],
       ['ALPHAPP',m.metadata.alpha_approximation],['BETAREF',m.metadata.beta_reference],['DGLFIXED',true]);
   }
+  if(!air&&result.state){
+    const s=result.state,v=s.zenith;
+    rows.push(['ORBIT',request.orbit],['ORBMODEL','IDEAL SOLAR CIRCLE'],['SAT_H',request.height],['SAT_SZA',s.sza],
+      ['PHASE',s.orbitalPhaseDeg],['PHASE0',request.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V1'],
+      ['PHMODE',request.evolve?'EPOCH':'MANUAL'],['PERIOD',s.period],['ELVMIN',request.minElvDeg??20],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],
+      ['ZENRA',mod(Math.atan2(v[1],v[0])/D,360)],['ZENDEC',Math.asin(clamp(v[2],-1,1))/D]);
+    if(request.evolve)rows.push(['EPOCH',request.epoch]);
+    for(const [name,unit]of [['MIN_ALTITUDE','km'],['ZENITH_ANGLE','deg'],['ELV','deg']])rows.push(['TUNIT'+(names.indexOf(name)+1),unit]);
+  }
   const ext=header(rows),dataBytes=n*names.length*4,out=new Uint8Array(primary.length+ext.length+Math.ceil(dataBytes/2880)*2880);
   out.set(primary);out.set(ext,primary.length);const view=new DataView(out.buffer,primary.length+ext.length);
   for(let i=0;i<n;i++){
     const vals=air?[result.mag[i],result.flux[i],result.lit[i],result.earth[i],result.valid[i],result.hmin[i],result.cutoff[i],result.theta[i],result.view[i],result.elv[i]]:[result.mag[i],result.flux[i]];
     if(request.kind==='zodiacal_dgl')vals.push(result.zodiacal[i],result.dgl[i]);
+    if(!air&&result.state)vals.push(result.earth[i],result.valid[i],result.hmin[i],result.theta[i],result.view[i],result.elv[i]);
     if(total)vals.push(result.zodiacal[i],result.dgl[i],result.airglow[i],result.airglowPhoton[i]);
     for(let j=0;j<vals.length;j++)view.setFloat32((i*vals.length+j)*4,vals[j],false);
   }

@@ -16,6 +16,8 @@ from sdrift_sky import SkyModel, DEFAULT_DATA, BANDS, utc_time, coordinates, vec
 
 R = 6371.
 ORBIT_TYPES = ('dawn-dusk', 'noon-midnight')
+MAP_LABELS = {'zodiacal':'Zodiacal light', 'dgl':'DGL', 'zodiacal_dgl':'Zodiacal light + DGL',
+              'airglow':'Airglow', 'total':'Zodiacal + DGL + Airglow'}
 try:
     from numba import njit, prange
     HAVE_NUMBA = True
@@ -124,7 +126,7 @@ class AirglowOrbitModel(SkyModel):
     def evaluate(self, directions, date, band='VIS', model='combined', height=650., orbit='dawn-dusk', orbital_phase_deg=0.,
                  epoch=None, sun_avoidance=True, sun_separation=90.,
                  moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=20., kind='total'):
-        if kind not in ('airglow', 'total'): raise ValueError('Kind must be airglow or total')
+        if kind not in MAP_LABELS: raise ValueError('Unknown map kind')
         if phase is not None: orbital_phase_deg = phase  # alias; NORTH_V1 convention
         if band not in BANDS or model not in ('glow', 'combined'): raise ValueError('Unknown band/model')
         if not all(np.isfinite(x) for x in (sun_separation, moon_separation, step_km)) or not (0 <= sun_separation <= 180 and 0 <= moon_separation <= 180 and step_km > 0):
@@ -143,6 +145,20 @@ class AirglowOrbitModel(SkyModel):
         view = elv >= min_elv_deg-1e-9
         if sun_avoidance: view &= v@sun <= np.cos(np.deg2rad(sun_separation))+1e-12
         if moon_avoidance: view &= v@moon <= np.cos(np.deg2rad(moon_separation))+1e-12
+        if kind not in ('airglow', 'total'):
+            result = SkyModel.evaluate(self, v, date, band=band, model=kind,
+                sun_avoidance=sun_avoidance, sun_separation=sun_separation,
+                moon_avoidance=moon_avoidance, moon_separation=moon_separation)
+            radial = v@state['zenith']; b = (R+height)*radial
+            earth = (b < 0) & (b*b-(R+height)**2+R*R >= 0)
+            hmin = np.sqrt(np.maximum((R+height)**2-np.minimum(b,0)**2,0))-R
+            shown = view & ~earth
+            for key in ('flux','mag','zodiacal','dgl'):
+                result[key] = np.where(shown,result[key],np.nan)
+            result.update(kind=kind, height=height, orbit=orbit, orbital_phase_deg=orbital_phase_deg,
+                epoch=epoch, min_elv_deg=min_elv_deg, theta=theta, elv=elv, view=view, earth=earth,
+                valid=~earth, hmin=np.where(earth,0,hmin), state=state, engine='map interpolation')
+            return result
         info = self.manifest['airglow'][model]; q = self._array(info['bands'][band]).astype(float)
         function = _fast_kernel if HAVE_NUMBA and engine != 'numpy' else _numpy_kernel
         a = np.full((len(v), 6), np.nan); a[:, [2, 3, 5]] = 0
@@ -184,12 +200,17 @@ class AirglowOrbitModel(SkyModel):
                     sun_separation_deg=float(np.rad2deg(np.arccos(np.clip(vector(ra, dec)@r['sun'], -1, 1)))),
                     moon_separation_deg=float(np.rad2deg(np.arccos(np.clip(vector(ra, dec)@r['moon'], -1, 1)))))
 
+        if r['kind'] not in ('airglow','total'):
+            point.pop('photon_radiance')
+            point.update(intensity_mjy_sr=float(r['flux'][0]), zodiacal_mjy_sr=float(r['zodiacal'][0]), dgl_mjy_sr=float(r['dgl'][0]))
         if r['kind'] == 'total':
             point.update(intensity_mjy_sr=float(r['flux'][0]), zodiacal_mjy_sr=float(r['zodiacal'][0]),
                          dgl_mjy_sr=float(r['dgl'][0]), airglow_mjy_sr=float(r['airglow'][0]))
         return point
 
     def save_fits(self, r, filename):
+        if r['kind'] not in ('airglow','total'):
+            return SkyModel.save_fits(self,r,filename)
         path = Path(filename)
         if not path.name.endswith('.fits.gz'): raise ValueError('FITS output must end in .fits.gz')
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -270,11 +291,12 @@ class AirglowOrbitModel(SkyModel):
         ax.grid(alpha=.3); ticks = np.arange(-150, 180, 30)
         ax.set_xticks(np.deg2rad(ticks), [f'{int(-t)%360}°' for t in ticks]); ax.set_xlabel('l (Galactic longitude; deg)' if r.get('coords')=='galactic' else 'RA (deg; increases to the left)'); ax.set_ylabel('b (deg)' if r.get('coords')=='galactic' else 'DEC (deg)')
         lo_nm, hi_nm = self.manifest['bands'][r['band']]
-        label = 'Zodiacal light + DGL + Airglow' if r['kind'] == 'total' else 'Airglow'
+        label = MAP_LABELS[r['kind']]
         fig.suptitle(f"{r.get('coords','equatorial').title()} | {label} | {r['band']} {lo_nm:g}-{hi_nm:g} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}\n"
                      f"{r['orbit']} | H={r['height']:g} km | φ={r['state']['orbital_phase_deg']:.1f}° | SZA={r['state']['sza']:.1f}° | ELV ≥ {r['min_elv_deg']:g}°", fontsize=11)
         fig.colorbar(im, ax=ax, orientation='horizontal', fraction=.045, pad=.12, label='AB mag / arcsec²')
-        fig.text(.5,.025, f"Sun separation ≥ {r['sun_separation']:g}° ({'on' if r['sun_avoidance'] else 'off'}); Moon ≥ {r['moon_separation']:g}° ({'on' if r['moon_avoidance'] else 'off'}) | ELV ≥ {r['min_elv_deg']:g}° | Gray: Earth; hatch: partial model; pale: excluded\nIdeal solar-following circle; mean emission table; no UV absorption or twilight history", ha='center', fontsize=8)
+        model_note='Ideal solar-following circle; mean emission table; no UV absorption or twilight history' if r['kind'] in ('airglow','total') else 'Ideal solar-following circle; zodiacal rotates with date; DGL stays fixed in the equatorial sky'
+        fig.text(.5,.025, f"Sun separation ≥ {r['sun_separation']:g}° ({'on' if r['sun_avoidance'] else 'off'}); Moon ≥ {r['moon_separation']:g}° ({'on' if r['moon_avoidance'] else 'off'}) | ELV ≥ {r['min_elv_deg']:g}° | Gray: Earth; hatch: partial model; pale: excluded\n{model_note}", ha='center', fontsize=8)
         return fig
 
 
@@ -289,7 +311,7 @@ def main():
     p.add_argument('--epoch', help='UTC of the input north phase; omit to hold phase fixed')
     p.add_argument('--min-elv', '--elv-min', type=float, default=20., help='Minimum Earth limb elevation, deg (default: 20)')
     p.add_argument('--band', choices=BANDS, default='VIS')
-    p.add_argument('--kind', choices=['airglow','total'], default='total', help='Total = zodiacal + DGL + airglow')
+    p.add_argument('--kind', choices=list(MAP_LABELS), default='total', help='Total = zodiacal + DGL + airglow')
     p.add_argument('--model', choices=['combined','glow'], default='combined')
     p.add_argument('--coords', choices=COORD_SYSTEMS, default='equatorial')
     p.add_argument('--nside', type=int, default=128)

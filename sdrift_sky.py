@@ -159,6 +159,18 @@ class SkyModel:
             meta = self.manifest['dgl']['metadata']
             headers += [('CORRMOD', 'C2022_all'), ('CORRSCL', meta['scale']), ('BETAOP', 'MULTIPLY'),
                         ('ALPHAPP', meta['alpha_approximation']), ('BETAREF', meta['beta_reference']), ('DGLFIXED', True)]
+        if 'state' in r:
+            keys=['earth','valid','hmin','theta','view','elv']
+            arrays += [r[k] for k in keys]
+            names += ['EARTH_OCCULTED','MODEL_VALID','MIN_ALTITUDE','ZENITH_ANGLE','VIEW_ALLOWED','ELV']
+            units += ['','','km','deg','','deg']
+            state=r['state']; zen_ra,zen_dec=coordinates(state['zenith'])
+            headers += [('ORBIT',r['orbit']),('ORBMODEL','IDEAL SOLAR CIRCLE'),('SAT_H',r['height']),
+                        ('SAT_SZA',state['sza']),('PHASE',state['orbital_phase_deg']),('PHASE0',r['orbital_phase_deg']),
+                        ('PHREF','NORTH'),('PHCONV','NORTH_V1'),('PHMODE','EPOCH' if r['epoch'] else 'MANUAL'),
+                        ('PERIOD',state['period']),('ELVMIN',r['min_elv_deg']),('ELVREF','SPHERICAL EARTH'),
+                        ('EARTHR',6371.),('ZENRA',zen_ra),('ZENDEC',zen_dec)]
+            if r['epoch']:headers.append(('EPOCH',r['epoch']))
         path = Path(filename)
         if not path.name.endswith('.fits.gz'): raise ValueError('FITS output must end with .fits.gz')
         path.parent.mkdir(parents=True, exist_ok=True)
