@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>S-DRIFT · Sky Background</title><link rel="stylesheet" href="assets/style.css?v=guide-1"></head>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>S-DRIFT · Sky Background</title><link rel="stylesheet" href="assets/style.css?v=geometry-guide-1"></head>
 <body><main><header><p class="eyebrow">S-DRIFT / SKY BACKGROUND</p><h1>하늘의 배경광</h1><p>Zodiacal light, DGL, airglow의 RA, DEC HEALPix map · constant throughput</p></header>
 <section class="controls" aria-label="계산 설정"><div class="row"><label>모델<select id="kind"><option value="zodiacal">Zodiacal light</option><option value="dgl">DGL</option><option value="zodiacal_dgl">Zodiacal light + DGL</option><option value="airglow">Airglow</option><option value="total" selected>Zodiacal light + DGL + Airglow</option></select></label><label>Band<select id="band"><option value="UV1">UV1 · 200–400 nm</option><option value="UV2">UV2 · 250–400 nm</option><option value="UV3">UV3 · 300–400 nm</option><option value="VIS" selected>VIS · 400–700 nm</option></select></label><label>NSIDE<select id="nside"><option>16</option><option>32</option><option>64</option><option selected>128</option></select></label></div>
 <div class="row"><span>UTC</span><div id="datetime" class="row"></div><button id="now">현재 시간</button></div><div id="zodi-controls"><div class="row"><label class="check"><input id="anti" type="checkbox" autocomplete="off" checked> Sun avoidance</label><label>최소 Sun separation (°)<input id="elongation" type="number" min="0" max="180" step="5" value="90"></label><span id="moon-controls" class="row"><label class="check"><input id="moon-avoid" type="checkbox" autocomplete="off" checked> Moon avoidance</label><label>최소 Moon separation (°)<input id="moon-angle" type="number" min="0" max="180" step="5" value="60"></label></span></div></div>
@@ -35,6 +35,16 @@
 <article><h3>Airglow 성분</h3><p><strong>GLOW + PALACE night layers</strong>는 GLOW에 가정한 PALACE 야간 발광층을 더합니다. <strong>GLOW selected lines</strong>는 GLOW의 선택된 발광선만 사용합니다. 합산 모드에서도 이 선택은 Airglow 성분에 적용됩니다.</p></article>
 <article><h3>기준 UTC부터 위상 자동 진행 / 기준 UTC</h3><p>체크하면 기준 UTC에 입력한 위상에서 출발해 관측 UTC까지 경과한 시간만큼 위성이 이동합니다. 고도 650 km에서 한 바퀴는 약 <strong>97.58분</strong>입니다. 체크를 해제하면 날짜를 바꿔도 입력한 위상을 유지합니다.</p></article>
 </div>
+<section class="geometry-guide" aria-labelledby="geometry-title">
+<h3 id="geometry-title">그림으로 보는 궤도 위상과 ELV</h3>
+<p class="geometry-intro">위상 φ는 지구 중심에서 북쪽을 기준으로 잽니다. 천정각 θ와 ELV는 위성에서 시선 방향을 기준으로 잽니다. 아래 그림은 정의를 설명하는 개념도이며 현재 입력값을 나타내지는 않습니다.</p>
+<p class="geometry-mobile-note">작은 화면에서는 그림을 좌우로 스크롤하여 글자와 각도를 확인할 수 있습니다.</p>
+<div class="phase-figures">
+<figure><h4>Dawn–dusk의 북쪽 기준 위상 φ</h4><div class="geometry-scroll"><img src="assets/geometry_phase_dd.svg" alt="Dawn-dusk 궤도면을 정면으로 본 그림. 북쪽이 위상 0도, 남쪽이 180도이며 태양은 궤도면 바깥으로 향한다." width="600" height="530" loading="lazy"></div><figcaption>태양 방향은 궤도면에 수직입니다. ⊙는 화면 밖, 보는 사람 쪽을 향하는 방향입니다. 위성이 이동해도 위성 위치의 SZA는 90°입니다.</figcaption></figure>
+<figure><h4>Noon–midnight의 북쪽 기준 위상 φ</h4><div class="geometry-scroll"><img src="assets/geometry_phase_nm.svg" alt="Noon-midnight 궤도에서 북쪽 0도, 자정 90도, 남쪽 180도, 정오 270도. 태양은 오른쪽에 있다." width="600" height="530" loading="lazy"></div><figcaption>태양 방향을 포함하는 궤도면입니다. 위상 증가 방향은 북쪽 → 자정 → 남쪽 → 정오이며 두 궤도 모두 0°를 북쪽으로 통일합니다.</figcaption></figure>
+</div>
+<figure class="limb-figure"><h4>최소 ELV, 천정각 θ와 위성 고도 H</h4><div class="geometry-scroll"><img src="assets/geometry_limb_elv.svg" alt="위성에서 지표면에 접하는 시선이 ELV 0도이며, 그보다 위쪽 관측 시선의 각도가 ELV이다. 천정각은 천정 방향과 관측 시선 사이 각도이고 녹색 점선은 최소 ELV 경계다." width="1000" height="680" loading="lazy"></div><figcaption><strong>ELV = 0°</strong>는 지표면에 접하는 방향입니다. 최소 ELV를 높이면 이 방향에서 더 멀리 떨어진 하늘만 표시합니다. 예를 들어 H = 650 km에서는 ELV ≈ 114.85° − θ입니다. ELV가 양수여도 높은 대기층을 지날 수 있습니다.</figcaption></figure>
+</section>
 <p class="help-note">날짜는 태양·달 위치와 시선 기하에 적용합니다. Airglow 발광률은 평균 태양 활동의 표를 사용하며, UV 흡수와 dawn/dusk 화학 이력 등 기존 모델의 한계는 유지됩니다.</p>
 </div>
 <h2>지도 표시와 저장</h2>

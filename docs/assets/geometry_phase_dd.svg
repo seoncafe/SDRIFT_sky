@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 530" role="img" aria-labelledby="title desc"><title id="title">Dawn–dusk 북쪽 기준 위상</title><desc id="desc">궤도면을 정면으로 본 그림. 위상이 북쪽 0도에서 왼쪽으로 증가해 남쪽 180도에 도달한다. Noon-midnight는 왼쪽 90도가 자정, 오른쪽 270도가 정오다.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0,0 L6,3 L0,6 Z" fill="context-stroke"/></marker><radialGradient id="earth"><stop stop-color="#e2edf8"/><stop offset="1" stop-color="#bdd1e6"/></radialGradient></defs><style>text{font-family:system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;font-size:20px;fill:#203348}.small{font-size:17px}.bold{font-weight:700}.halo{paint-order:stroke;stroke:white;stroke-width:6px;stroke-linejoin:round}.blue{fill:#226ca3}.green{fill:#008060}.orange{fill:#c36a09}</style>
+<text x="300.00" y="30.00" text-anchor="middle" class="small">궤도면을 정면으로 본 모습</text>
+<circle cx="300" cy="254" r="144" fill="#f5f9fd" stroke="#226ca3" stroke-width="2.5" stroke-dasharray="8 6"/>
+<path d="M300.00,416.00 L300.00,91.00" fill="none" stroke="#a4b5c4" stroke-width="2" stroke-dasharray="7 6"/>
+<path d="M136.00,254.00 L463.00,254.00" fill="none" stroke="#a4b5c4" stroke-width="2" stroke-dasharray="7 6"/>
+<circle cx="300" cy="254" r="46" fill="url(#earth)" stroke="#7897b5" stroke-width="1.5"/>
+<text x="300.00" y="279.00" text-anchor="middle" class="bold">지구</text>
+<text x="300.00" y="65.00" text-anchor="middle" class="bold blue">0° · 북쪽</text>
+<text x="300.00" y="89.00" text-anchor="middle" class="small">북극축을 궤도면에 투영</text>
+<text x="300.00" y="438.00" text-anchor="middle" class="bold blue">180° · 남쪽</text>
+<text x="110.00" y="250.00" text-anchor="middle" class="bold blue">90°</text>
+<text x="490.00" y="250.00" text-anchor="middle" class="bold blue">270°</text>
+<text x="90.00" y="295.00" text-anchor="middle" class="small">s × 북쪽</text>
+<text x="488.00" y="335.00" text-anchor="middle" class="orange bold">⊙</text>
+<text x="488.00" y="365.00" text-anchor="middle" class="orange small">태양 방향 s</text>
+<text x="488.00" y="390.00" text-anchor="middle" class="orange small">화면 밖으로</text>
+<text x="300.00" y="478.00" text-anchor="middle" class="small">궤도면 ⟂ 태양 방향 · SZA = 90°</text>
+<path d="M300.00,254.00 L198.18,152.18" fill="none" stroke="#008060" stroke-width="3" marker-end="url(#arrow)"/>
+<circle cx="198.17662350913716" cy="152.17662350913713" r="7" fill="#008060" stroke="white" stroke-width="2"/>
+<text x="186.18" y="135.18" text-anchor="end" class="green bold">위성</text>
+<path d="M300.00,181.00 A73,73 0 0 0 248.38,202.38" fill="none" stroke="#008060" stroke-width="3" marker-end="url(#arrow)"/>
+<text x="268.00" y="169.00" text-anchor="middle" class="green bold">φ</text>
+<path d="M407.01,157.65 A144,144 0 0 0 344.50,117.05" fill="none" stroke="#226ca3" stroke-width="3" marker-end="url(#arrow)"/>
+<text x="300.00" y="510.00" text-anchor="middle" class="small">예시 위상 φ = 45° · 각도는 지구 중심에서 측정</text>
+</svg>

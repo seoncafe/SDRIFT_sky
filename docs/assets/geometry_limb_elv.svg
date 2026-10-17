@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" role="img" aria-labelledby="title desc"><title id="title">위성 고도, 천정각과 Earth limb elevation</title><desc id="desc">위성에서 지표면 접점으로 향하는 시선이 ELV 0도다. 그보다 위를 향하는 관측 시선은 양의 ELV를 가지며, 천정 방향에서 잰 각도는 천정각 세타다. 최소 ELV를 높이면 접선 부근의 관측 방향을 더 제외한다.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0,0 L6,3 L0,6 Z" fill="context-stroke"/></marker><radialGradient id="earth"><stop stop-color="#e2edf8"/><stop offset="1" stop-color="#bdd1e6"/></radialGradient></defs><style>text{font-family:system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;font-size:20px;fill:#203348}.small{font-size:17px}.bold{font-weight:700}.halo{paint-order:stroke;stroke:white;stroke-width:6px;stroke-linejoin:round}.blue{fill:#226ca3}.green{fill:#008060}.orange{fill:#c36a09}</style>
+<circle cx="300" cy="360" r="205" fill="#f3f9f9" stroke="#8bb8be" stroke-width="2" stroke-dasharray="7 6"/>
+<circle cx="300" cy="360" r="180" fill="url(#earth)" stroke="#567da3" stroke-width="2.5"/>
+<text x="300.00" y="383.00" text-anchor="middle" class="bold">지구</text>
+<text x="300.00" y="410.00" text-anchor="middle" class="small">중심 O</text>
+<text x="70.00" y="146.00" text-anchor="start" class="small">대기층</text>
+<path d="M135.00,152.00 L190.00,188.00" fill="none" stroke="#8bb8be" stroke-width="2"/>
+<path d="M300.00,90.00 L300.00,20.00" fill="none" stroke="#226ca3" stroke-width="3" marker-end="url(#arrow)"/>
+<text x="325.00" y="35.00" text-anchor="start" class="blue bold">천정</text>
+<path d="M300.00,90.00 L300.00,360.00" fill="none" stroke="#8da2b4" stroke-width="2" stroke-dasharray="7 6"/>
+<text x="283.00" y="288.00" text-anchor="end" class="small">천저</text>
+<path d="M260.00,90.00 L260.00,180.00" fill="none" stroke="#567da3" stroke-width="2"/>
+<path d="M252.00,90.00 L268.00,90.00" fill="none" stroke="#567da3" stroke-width="2"/>
+<path d="M252.00,180.00 L268.00,180.00" fill="none" stroke="#567da3" stroke-width="2"/>
+<path d="M260.00,90.00 L298.00,90.00" fill="none" stroke="#8da2b4" stroke-width="2" stroke-dasharray="7 6"/>
+<path d="M260.00,180.00 L300.00,180.00" fill="none" stroke="#8da2b4" stroke-width="2" stroke-dasharray="7 6"/>
+<text x="245.00" y="143.00" text-anchor="end" class="bold">H</text>
+<path d="M300.00,360.00 L120.00,360.00" fill="none" stroke="#567da3" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="203.00" y="347.00" text-anchor="middle" class="bold">R</text>
+<path d="M300.00,90.00 L733.33,574.48" fill="none" stroke="#738292" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#arrow)"/>
+<path d="M300.00,90.00 L810.88,491.87" fill="none" stroke="#008060" stroke-width="3" stroke-dasharray="7 6" marker-end="url(#arrow)"/>
+<path d="M300.00,90.00 L872.90,397.05" fill="none" stroke="#244c78" stroke-width="3.5" marker-end="url(#arrow)"/>
+<path d="M300.00,360.00 L434.16,240.00" fill="none" stroke="#738292" stroke-width="2"/>
+<circle cx="434.16407864998735" cy="240.0" r="5" fill="#738292"/>
+<path d="M422.98373876248843,227.5 L411.8033988749895,237.5 L422.98373876248843,250.0" fill="none" stroke="#738292" stroke-width="1.5"/>
+<text x="454.16" y="265.00" text-anchor="start" class="small">지표면 접점 T</text>
+<path d="M300.00,40.00 A50,50 0 0 1 344.07,113.62" fill="none" stroke="#226ca3" stroke-width="2.5"/>
+<text x="351.00" y="58.00" text-anchor="middle" class="blue bold">θ</text>
+<path d="M395.19,141.02 A108,108 0 0 1 372.00,170.50" fill="none" stroke="#008060" stroke-width="3"/>
+<text x="442.00" y="125.00" text-anchor="start" class="green bold">ELV</text>
+<path d="M439.00,135.00 L397.00,157.00" fill="none" stroke="#008060" stroke-width="2"/>
+<text x="705.00" y="240.00" text-anchor="start" class="bold">관측 시선</text>
+<text x="705.00" y="270.00" text-anchor="start" class="green small">ELV ≥ 최소 ELV → 표시</text>
+<text x="970.00" y="450.00" text-anchor="end" class="green bold">최소 ELV 경계</text>
+<text x="980.00" y="588.00" text-anchor="end" class="small">지표면 limb 방향 · ELV = 0°</text>
+<circle cx="300" cy="90" r="7" fill="#244c78" stroke="white" stroke-width="2"/>
+<text x="370.00" y="80.00" text-anchor="start" class="bold">위성 S</text>
+<text x="500.00" y="632.00" text-anchor="middle" class="bold">ELV = 180° − asin[R / (R + H)] − θ</text>
+<text x="500.00" y="663.00" text-anchor="middle" class="small">θ: 천정에서 잰 시선각 · H: 지표면 위 위성 고도 · 거리와 각도는 개념도</text>
+</svg>
