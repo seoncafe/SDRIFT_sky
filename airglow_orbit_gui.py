@@ -35,6 +35,7 @@ class Viewer:
         entry(f,'band','Band','VIS',BANDS,6); entry(f,'model','Model','combined',('combined','glow'),10)
         entry(f,'nside','NSIDE','128',('16','32','64','128'),5)
         f=row(); entry(f,'zenith_min','Min zenith (deg)','0',width=6); entry(f,'zenith_max','Max zenith (deg)','180',width=6)
+        entry(f,'min_elv_deg','Min ELV (deg)','0.0',width=6)
         self.evolve=tk.BooleanVar(value=False)
         ttk.Checkbutton(f,text='Evolve phase from epoch',variable=self.evolve).pack(side='left',padx=5)
         entry(f,'epoch','Phase epoch UTC','2026-10-17T00:00:00Z',width=23)
@@ -70,7 +71,7 @@ class Viewer:
     def update(self):
         if self.busy:return
         try:
-            v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','zenith_min','zenith_max','sun_separation','moon_separation']}
+            v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','zenith_min','zenith_max','min_elv_deg','sun_separation','moon_separation']}
             settings.update(orbit=v['orbit'],band=v['band'],model=v['model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None)
             utc_time(v['date']); nside=int(v['nside'])
         except ValueError as exc: messagebox.showerror('Input',str(exc)); return
@@ -100,12 +101,12 @@ class Viewer:
         import healpy as hp
         ra=(-np.rad2deg(event.xdata))%360; dec=np.rad2deg(event.ydata)
         i=hp.ang2pix(self.result['nside'],ra,dec,lonlat=True);r=self.result
-        self.status.set(f"{r['mag'][i]:.3f} mag at (RA, DEC) = ({ra:.2f}, {dec:.2f}) | zenith {r['theta'][i]:.2f} deg"+(' | excluded' if not r['view'][i] else ' | Earth' if r['earth'][i] else ' | partial model' if not r['valid'][i] else ''))
+        self.status.set(f"{r['mag'][i]:.3f} mag at (RA, DEC) = ({ra:.2f}, {dec:.2f}) | zenith {r['theta'][i]:.2f} deg | ELV {r['elv'][i]:.2f} deg"+(' | excluded' if not r['view'][i] else ' | Earth' if r['earth'][i] else ' | partial model' if not r['valid'][i] else ''))
 
     def save(self,kind):
         if self.result is None:return
         r=self.result;stamp=r['utc'].replace('-','').replace(':','').replace('T','_').rstrip('Z')
-        name=f"airglow_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_z{r['zenith_min']:g}-{r['zenith_max']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
+        name=f"airglow_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_z{r['zenith_min']:g}-{r['zenith_max']:g}_elv{r['min_elv_deg']:g}_{r['model']}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
         path=filedialog.asksaveasfilename(defaultextension='.'+kind,initialfile=name+'.'+kind)
         if path:
             if kind=='fits.gz':self.sky.save_fits(r,path)

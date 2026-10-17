@@ -44,10 +44,21 @@ Web Worker에서 시선을 적분하며 계산을 중지할 수 있습니다. Py
 최대각을 90°보다 크게 하면 하향 시선도 포함되며 지구 표면에 가려지지 않는 한
 위성보다 낮은 대기를 통과하는 경로도 적분합니다.
 
-**기본 관측 조건은 Sun separation >= 90°, Moon separation >= 60°입니다.**
+**기본 관측 조건은 Sun separation >= 90°, Moon separation >= 60°, ELV >= 0°입니다.**
+ELV(Earth limb elevation)는 구형 지구 표면의 가장자리보다 시선이 얼마나
+위에 있는지를 나타내는 각도입니다. 고도 H와 천정각 θ에 대해
+`ELV = 180° - asin(R/(R+H)) - θ`이며 R=6371 km입니다.
+고도 650 km에서는 약 `ELV = 114.85° - θ`입니다.
+GUI/웹의 **최소 ELV**를 조절하며 CLI는 `--min-elv 10`, Python API는
+`min_elv_deg=10`처럼 지정합니다. 기본값은 0.0°이고 -90~180° 범위에서
+입력합니다. 다른 회피 조건 및 천정각 조건과 동시에 적용합니다.
+음수를 지정해도 지구에 가려진 방향의 밝기는 계산하지 않습니다.
+ELV >= 0°가 모델의 모든 대기층을 피한다는 뜻은 아닙니다.
+최소 ELV 경계는 녹색 점선, 천정각 경계는 파란색 점선이며 포인터에 ELV도 표시합니다.
+
 Python과 웹 모두 태양·달을 표시하고 태양 경계는 빨간 점선, 달 경계는 주황 점선으로
 그립니다. 회피각은 변경하거나 해제할 수 있습니다. 천정과 천정각 경계는 파란색입니다.
-회피 및 천정각 범위 밖은 밝은 무채색, 지구 차폐는 회색, 모델 범위 밖/광전자
+회피·ELV·천정각 조건 밖은 밝은 무채색, 지구 차폐는 회색, 모델 범위 밖/광전자
 cutoff는 빗금입니다. 빗금 영역의 밝기는 부분적인 계산 결과입니다.
 
 ## 날짜만으로 정해지지 않는 궤도상 위치
@@ -127,10 +138,10 @@ sky.save_fits(r, 'map.fits.gz')
 
 출력 FITS.gz는 RING/적도 HEALPix이며 AB_MAG_ARCSEC2, PHOTON_RADIANCE,
 SUNLIT_RADIANCE, EARTH_OCCULTED, MODEL_VALID, MIN_ALTITUDE, PHOTO_CUTOFF,
-ZENITH_ANGLE, VIEW_ALLOWED를 저장합니다. 제외 영역의 밝기는 NaN입니다.
-VIEW_ALLOWED는 천정각·태양·달 회피만 판정하고, 지구 차폐와 모델 유효성은
+ZENITH_ANGLE, VIEW_ALLOWED, ELV(deg)를 저장합니다. 제외 영역의 밝기는 NaN입니다.
+VIEW_ALLOWED는 천정각·최소 ELV·태양·달 회피를 판정하고, 지구 차폐와 모델 유효성은
 별도 열을 봅니다. 제외 방향은 적분을 생략하므로 다른 진단 열은 유효하지 않습니다.
-UTC, 궤도 종류, 위상/기준 UTC, 고도, 위성 SZA, 회피각, 천정각 범위,
+UTC, 궤도 종류, 위상/기준 UTC, 고도, 위성 SZA, 회피각, 천정각 범위, 최소 ELV(ELVMIN),
 태양·달·천정의 RA/DEC, 발광률 표 SHA-256 등을 헤더에 기록합니다.
 위상 기준은 `PHREF=NORTH`, 정의 버전은 `PHCONV=NORTH_V1`로 명시합니다.
 파일명에서는 궤도 위상을 `_phi...`로 표시합니다.

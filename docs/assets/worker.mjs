@@ -1,5 +1,5 @@
 // Modified 2026-10-17. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,D,mod} from './sky-core.mjs?v=north-phase-1';
+import {pixVector,rotation,solarAt,sunLongitude,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,D,mod} from './sky-core.mjs?v=elv-sky-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -23,8 +23,8 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
    result.delta=delta;result.sun=sun;
    moon=solarAt(Date.parse(r.utc)/1000,await array(m.lunar),m.lunar);result.moon=moon;
    if(r.kind==='zodiacal_dgl'){result.zodiacal=new Float32Array(np);result.dgl=new Float32Array(np);}
- }else {info=m.airglow[r.model];q=await array(info.bands[r.band]);state=orbitState(sun,r.height,r.orbit,r.orbitalPhaseDeg,Date.parse(r.utc)/1000,r.evolve?Date.parse(r.epoch)/1000:null);result.state=state;for(const key of ['lit','hmin','theta'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff','view'])result[key]=new Uint8Array(np);}
- const {sampleMap}=await import('./sky-core.mjs?v=north-phase-1');
+ }else {info=m.airglow[r.model];q=await array(info.bands[r.band]);state=orbitState(sun,r.height,r.orbit,r.orbitalPhaseDeg,Date.parse(r.utc)/1000,r.evolve?Date.parse(r.epoch)/1000:null);result.state=state;for(const key of ['lit','hmin','theta','elv'])result[key]=new Float32Array(np);for(const key of ['earth','valid','cutoff','view'])result[key]=new Uint8Array(np);}
+ const {sampleMap}=await import('./sky-core.mjs?v=elv-sky-1');
  for(let i=0;i<np;i++){
  const v=pixVector(r.nside,i);
  if(r.kind!=='airglow'){
@@ -33,7 +33,7 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
  result.flux[i]=masked?NaN:z+g;result.mag[i]=masked?NaN:abZodi(result.flux[i]);
  if(r.kind==='zodiacal_dgl'){result.zodiacal[i]=masked?NaN:z;result.dgl[i]=masked?NaN:g;}
  }else{
- const mask=visibility(v,state,r,moon);result.theta[i]=mask.theta;result.view[i]=mask.view;
+ const mask=visibility(v,state,r,moon);result.theta[i]=mask.theta;result.elv[i]=mask.elv;result.view[i]=mask.view;
  result.flux[i]=NaN;result.mag[i]=NaN;result.lit[i]=NaN;result.hmin[i]=NaN;
  if(mask.view){const a=integrateRay(r.height,state.sza,referenceDirection(v,state),q,info);for(const key of ['flux','lit','hmin','earth','valid','cutoff'])result[key][i]=a[key];result.mag[i]=a.earth?NaN:abAir(a.flux,m.bands[r.band]);}
  }
