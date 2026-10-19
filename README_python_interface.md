@@ -695,6 +695,8 @@ PALACE 야간층의 전 지구 적용 가정 등이 남아 있습니다.
 
 추가 자료:
 
+- [원본부터 데이터셋 생성](README_first.md)
+
 - [궤도·ELV 기하와 배경 설명](README_airglow_orbit.md)
 - [웹 실행 안내](https://github.com/seoncafe/SDRIFT_sky/blob/main/README.md)
 - [Dawn–dusk 위상 그림](docs/assets/geometry_phase_dd.svg)

@@ -1,5 +1,7 @@
 # S-DRIFT Sky Background — web and Python
 
+원본부터 데이터를 다시 만드는 절차는 [데이터셋 생성 안내서](README_first.md)를 참조하십시오.
+
 `docs/index.html`에서 zodiacal light, DGL, airglow를 계산합니다. 사용자는 Python,
 healpy, NumPy를 설치할 필요가 없습니다. 최신 Chrome / Edge / Firefox / Safari에서
 Web Worker, CompressionStream, DecompressionStream과 Web Crypto를 사용합니다.
