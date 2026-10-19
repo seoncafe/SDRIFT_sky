@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Query and plot all S-DRIFT sky models through one API using bundled data."""
+"""Query and plot all S-DRIFT sky models through one API using the docs/data files."""
 from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
@@ -52,6 +52,18 @@ def sun_longitude(v):
     return np.arctan2(np.cos(e)*v[1]+np.sin(e)*v[2], v[0])
 
 
+def zodiacal_template(coeffs, sun_lon):
+    """Combine annual harmonics (A0, C1, S1, ...) at Sun J2000 ecliptic longitude.
+
+    Same as zodiacal_healpix.harmonic_weights and docs/assets/sky-core.mjs.
+    """
+    coeffs = np.asarray(coeffs, dtype=float)
+    weights = [1.]
+    for k in range(1, (len(coeffs)-1)//2+1):
+        weights += [np.cos(k*sun_lon), np.sin(k*sun_lon)]
+    return np.asarray(weights)@coeffs
+
+
 def ab_magnitude(flux):
     with np.errstate(divide='ignore', invalid='ignore'):
         return -2.5*np.log10(np.asarray(flux)*1e6/ARCSEC_PER_RADIAN**2/3631.)
@@ -81,13 +93,17 @@ class _BackgroundModel:
             self._cache[name] = np.frombuffer(raw, dtype='<f4').reshape(meta['shape'])
         return self._cache[name]
 
-    def _body(self, unix, name):
+    def _body_vector(self, unix, name):
+        """Linearly interpolated geocentric vector (unit for the Sun, km for the Moon)."""
         meta = self.manifest[name]
         u = (unix-meta['start_unix'])/meta['step_seconds']; i = int(np.floor(u)); f = u-i
         if i < 0 or i >= meta['count']-1:
-            raise ValueError('UTC date must be within 1900–2100')
+            raise ValueError('UTC date must be within 1900-2100')
         data = self._array(meta)
-        v = data[i].astype(float)*(1-f)+data[i+1].astype(float)*f
+        return data[i].astype(float)*(1-f)+data[i+1].astype(float)*f
+
+    def _body(self, unix, name):
+        v = self._body_vector(unix, name)
         return v/np.linalg.norm(v)
 
     def evaluate(self, directions, date, band='VIS', model='zodiacal_dgl',
@@ -102,11 +118,16 @@ class _BackgroundModel:
             raise ValueError('Directions must be finite unit vectors with shape (..., 3)')
         unix, utc = utc_time(date)
         sun, moon = self._body(unix, 'solar'), self._body(unix, 'lunar')
-        delta = (sun_longitude(sun)-sun_longitude(self.manifest['solar']['reference_vector'])+np.pi)%(2*np.pi)-np.pi
+        sun_lon = sun_longitude(sun)
+        delta = (sun_lon-sun_longitude(self.manifest['solar']['reference_vector'])+np.pi)%(2*np.pi)-np.pi
         def sample(data, direction):
             return hp.get_interp_val(data, np.arccos(np.clip(direction[..., 2], -1, 1)),
                                      np.mod(np.arctan2(direction[..., 1], direction[..., 0]), 2*np.pi))
-        zodi = sample(self._array(self.manifest['zodiacal'][band]), rotation(v, -delta)) if model != 'dgl' else np.zeros(v.shape[:-1])
+        if model != 'dgl':
+            template = zodiacal_template(self._array(self.manifest['zodiacal'][band]), sun_lon)
+            zodi = sample(template, rotation(v, -delta))
+        else:
+            zodi = np.zeros(v.shape[:-1])
         dgl = sample(self._array(self.manifest['dgl']['bands'][band]), v) if model != 'zodiacal' else np.zeros(v.shape[:-1])
         sun_dot, moon_dot = v@sun, v@moon
         valid = ((sun_dot <= np.cos(np.deg2rad(sun_separation))) | (not sun_avoidance)) & ((moon_dot <= np.cos(np.deg2rad(moon_separation))) | (not moon_avoidance))
@@ -154,7 +175,7 @@ class _BackgroundModel:
                    ('DATATYPE', r['model']), ('ANTISUN', r['sun_avoidance']), ('ELONGMIN', r['sun_separation']),
                    ('SUNRA', sun_ra), ('SUNDEC', sun_dec), ('MOONMASK', r['moon_avoidance']),
                    ('MOONMIN', r['moon_separation']), ('MOONRA', moon_ra), ('MOONDEC', moon_dec),
-                   ('MOONOBS', 'GEOCENTRIC'), ('ROT-DEG', np.rad2deg(r['delta'])), ('PHOTCNT', True)]
+                   ('MOONOBS', 'SATELLITE' if 'state' in r else 'GEOCENTRIC'), ('ROT-DEG', np.rad2deg(r['delta'])), ('PHOTCNT', True)]
         if r['model'] != 'dgl': headers += [('REF-UTC', self.manifest['solar']['reference_utc'])]
         if r['model'] != 'zodiacal':
             meta = self.manifest['dgl']['metadata']
@@ -166,9 +187,10 @@ class _BackgroundModel:
             names += ['EARTH_OCCULTED','MODEL_VALID','MIN_ALTITUDE','ZENITH_ANGLE','VIEW_ALLOWED','ELV']
             units += ['','','km','deg','','deg']
             state=r['state']; zen_ra,zen_dec=coordinates(state['zenith'])
-            headers += [('ORBIT',r['orbit']),('ORBMODEL','IDEAL SOLAR CIRCLE'),('SAT_H',r['height']),
+            headers += [('ORBIT',r['orbit']),('ORBMODEL','SSO J2 CIRCULAR'),('SAT_H',r['height']),
+                        ('INCL',state['inclination_deg']),('RAAN',state['raan_deg']),('LTAN',state['ltan_hours']),
                         ('SAT_SZA',state['sza']),('PHASE',state['orbital_phase_deg']),('PHASE0',r['orbital_phase_deg']),
-                        ('PHREF','NORTH'),('PHCONV','NORTH_V1'),('PHMODE','EPOCH' if r['epoch'] else 'MANUAL'),
+                        ('PHREF','NORTH'),('PHCONV','NORTH_V2'),('PHMODE','EPOCH' if r['epoch'] else 'MANUAL'),
                         ('PERIOD',state['period']),('ELVMIN',r['min_elv_deg']),('ELVREF','SPHERICAL EARTH'),
                         ('EARTHR',6371.),('ZENRA',zen_ra),('ZENDEC',zen_dec)]
             if r['epoch']:headers.append(('EPOCH',r['epoch']))
@@ -177,52 +199,6 @@ class _BackgroundModel:
         path.parent.mkdir(parents=True, exist_ok=True)
         hp.write_map(str(path), arrays, column_names=names, column_units=units, dtype=np.float32,
                      coord='G' if r.get('coords')=='galactic' else 'C', overwrite=True, extra_header=headers)
-
-    def plot(self, result, target=None, contour_step=.2):
-        """Plot the masked sky and Sun/Moon/target positions; return a Figure."""
-        import matplotlib.pyplot as plt
-        if not any(np.isclose(contour_step, i/10) for i in range(1, 11)):
-            raise ValueError('Contour interval must be 0.1, 0.2, ... 1.0 mag')
-        r = result; mag = np.where(r['valid'], r['mag'], np.nan)
-        finite = mag[np.isfinite(mag)]
-        lo = np.floor(finite.min()*2)/2 if len(finite) else 18.
-        hi = max(lo+.5, np.ceil(finite.max()*2)/2) if len(finite) else 24.
-        fig = plt.figure(figsize=(12, 7))
-        wavelengths = self.manifest['bands'][r['band']]
-        label={'zodiacal':'Zodiacal light','dgl':'DGL','zodiacal_dgl':'Zodiacal light + DGL'}[r['model']]
-        title = f"{r.get('coords','equatorial').title()} | {label} | {r['band']} {wavelengths[0]}–{wavelengths[1]} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}"
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore',message='Ignoring specified arguments in this call because figure.*',category=UserWarning)
-            projected = hp.mollview(mag, fig=fig.number, coord='G' if r.get('coords')=='galactic' else 'C', cmap='viridis_r', min=lo, max=hi,
-                                    badcolor='white', bgcolor='white', title=title, unit='AB mag / arcsec²', return_projected_map=True)
-        hp.graticule(dpar=30, dmer=30)
-        ax = fig.axes[0]; xmin, xmax, ymin, ymax = ax.proj.get_extent()
-        levels = np.round(np.arange(np.floor((lo+1e-9)/contour_step)+1, np.ceil((hi-1e-9)/contour_step))*contour_step, 1)
-        if len(levels) and finite.size:
-            contours = ax.contour(np.linspace(xmin, xmax, projected.shape[1]), np.linspace(ymin, ymax, projected.shape[0]),
-                                  projected, levels=levels, colors='black', linewidths=np.linspace(.6, 2.2, len(levels)), alpha=.7)
-            ax.clabel(contours, inline=True, fmt='%.1f', fontsize=8)
-        for body, name, marker, color, enabled, angle in [(r['sun'], 'Sun', '*', 'red', r['sun_avoidance'], r['sun_separation']),
-                                                         (r['moon'], 'Moon', 'o', '#b56d00', r['moon_avoidance'], r['moon_separation'])]:
-            ra, dec = coordinates(from_equatorial(body, r.get('coords','equatorial')))
-            if enabled and 0 < angle < 180:
-                ring = from_equatorial(boundary(body, angle).T,r.get('coords','equatorial')).T
-                hp.projplot(np.rad2deg(np.arctan2(ring[1], ring[0])), np.rad2deg(np.arcsin(np.clip(ring[2], -1, 1))),
-                            lonlat=True, color=color, linestyle='--', linewidth=1.4)
-            hp.projplot(ra, dec, lonlat=True, marker=marker, color=color, markersize=10, markeredgecolor='black', zorder=12)
-            hp.projtext(ra, dec, name, lonlat=True, color=color, fontsize=9, fontweight='bold', ha='right' if name=='Sun' else 'left', va='bottom')
-        if target is not None:
-            ra, dec = target
-            plot_ra, plot_dec = coordinates(from_equatorial(vector(ra,dec), r.get('coords','equatorial')))
-            hp.projplot(plot_ra, plot_dec, lonlat=True, marker='x', color='#009cff', markersize=10, markeredgewidth=2, zorder=13)
-            hp.projtext(plot_ra, plot_dec, ' Target', lonlat=True, color='#006bbb', fontsize=9)
-            p = self.point(ra, dec, r['utc'], band=r['band'], model=r['model'], sun_avoidance=r['sun_avoidance'],
-                           sun_separation=r['sun_separation'], moon_avoidance=r['moon_avoidance'], moon_separation=r['moon_separation'])
-            label = f"{p['ab_mag_arcsec2']:.3f} mag / arcsec² at (RA, DEC) = ({ra % 360:.2f}°, {dec:.2f}°)"
-            if not p['visible']: label += ' · excluded by avoidance (unmasked brightness)'
-            fig.text(.5, .02, label, ha='center', fontsize=12, fontweight='bold')
-        return fig
-
 
 
 class SkyModel:

@@ -1,12 +1,13 @@
-# S-DRIFT Python 인터페이스와 사용법
+# S-DRIFT Python interface and usage
 
-작성 기준: 2026-10-19, 공통 Python API v2.
+Status: 2026-10-20, common Python API v2.
 
-Zodiacal light, DGL, Airglow와 합산 밝기를 **하나의 `SkyModel` 인터페이스**로
-계산합니다. 모드가 달라도 함수 이름·설정 인자·intensity 단위·관측 조건을
-동일하게 사용합니다. 이 문서는 Python API, 명령행(CLI), GUI와 저장 파일을 설명합니다.
+Zodiacal light, DGL, airglow, and their sum are computed through **one
+`SkyModel` interface**. All modes share the same function names, settings,
+intensity units, and observing conditions. This document describes the Python
+API, the command line (CLI), the GUI, and the saved files.
 
-## 1. 가장 간단한 사용법
+## 1. Quick start
 
 ```python
 from sdrift_sky import SkyModel
@@ -21,15 +22,16 @@ print(point["ab_mag_arcsec2"])
 print(point["visible"])
 ```
 
-`point(0, 60, 날짜, ...)`에서 **0은 RA=0°, 60은 DEC=+60°**입니다.
-RA의 단위는 시간이 아닌 degree이며 RA=0°는 0시간에 해당합니다.
-날짜 끝의 `Z`는 UTC입니다. 위 예제는 해당 UTC, 해당 하늘 방향에서의
-VIS 밴드 Zodiacal light + DGL 밝기를 계산합니다.
+In `point(0, 60, date, ...)`, **0 is RA = 0° and 60 is DEC = +60°**. RA is in
+degrees, not hours; RA = 0° corresponds to 0 h. The trailing `Z` of the date
+means UTC. The example computes the VIS-band zodiacal light + DGL brightness in
+that direction at that UTC.
 
-기본으로 궤도·ELV·태양/달 회피 조건을 적용합니다. `visible=False`인 방향의
-밝기와 intensity는 `NaN`입니다. 따라서 밝기와 함께 관측 가능 여부를 확인합니다.
+The orbit, ELV, and Sun/Moon avoidance conditions are applied by default. For
+directions with `visible=False`, brightness and intensity are `NaN`, so always
+check the visibility flag together with the brightness.
 
-모드를 바꿀 때는 **`model`만 바꾸면 됩니다.**
+To change the mode, **change only `model`**.
 
 ```python
 from sdrift_sky import SkyModel
@@ -45,77 +47,80 @@ for model in ["zodiacal", "dgl", "zodiacal_dgl", "airglow", "total"]:
     print(model, p["ab_mag_arcsec2"], p["intensity_mjy_sr"], p["visible"])
 ```
 
-## 2. 필요한 파일과 설치
+## 2. Required files and installation
 
-GitHub 저장소를 내려받은 뒤 다음 파일 구조를 유지합니다.
+After downloading the GitHub repository, keep the following layout.
 
 ```text
 SDRIFT_sky/
-├── sdrift_sky.py               # 공통 SkyModel, CLI
-├── airglow_orbit.py            # 수치 계산 엔진, 호환 CLI/클래스 이름
-├── airglow_orbit_gui.py        # 공통 Python GUI
-├── sky_coordinates.py         # Equatorial / Galactic 회전
+├── sdrift_sky.py               # common SkyModel, CLI
+├── airglow_orbit.py            # numerical engine, compatible CLI/class name
+├── airglow_orbit_gui.py        # common Python GUI
+├── sky_coordinates.py          # Equatorial / Galactic rotation
 ├── requirements-python.txt
 └── docs/data/
-    ├── manifest.json          # 파일명, 단위, 배열 크기, 출처와 해시
-    └── ...                    # 배포된 압축 데이터 전체
+    ├── manifest.json           # file names, units, array shapes, sources and hashes
+    └── ...                     # all compressed data files
 ```
 
-Python 파일 하나만 분리해서 복사하지 말고, 위 파일과 `docs/data/`를 함께 둡니다.
-기존 대용량 원본 FITS/NPZ, GLOW/PALACE 소스나 컴파일러는 배포 데이터의 조회에
-필요하지 않습니다. 실행 중 인터넷 연결도 필요하지 않습니다.
+Do not copy a single Python file on its own; keep the files above together with
+`docs/data/`. The large original FITS/NPZ files, the GLOW/PALACE sources, and a
+compiler are not needed to use the published data. No internet connection is
+needed at run time.
 
 ```sh
 python3 -m pip install -r requirements-python.txt
-# 선택: Airglow 병렬 적분을 사용하려면 호환되는 Numba 설치
+# Optional: install a compatible Numba for parallel airglow integration
 python3 -m pip install numba
 ```
 
-Python 3.10 이상을 대상으로 합니다. NumPy, healpy, Astropy, Matplotlib가 필요하고
-Numba는 선택 사항입니다. 설치된 Python·NumPy와 호환되는 Numba를 사용합니다.
-GUI에는 그래픽 데스크톱, Tkinter와 해당 Python에 맞는 Tcl/Tk가 필요합니다.
+Python 3.10 or later is targeted. NumPy, healpy, Astropy, and Matplotlib are
+required; Numba is optional. Use a Numba release compatible with the installed
+Python and NumPy. The GUI needs a graphical desktop, Tkinter, and the Tcl/Tk
+matching that Python.
 
 ```sh
 python3 -m tkinter
 ```
 
-위 명령으로 Tkinter 창이 열리는지 확인합니다. Tkinter는 Python 배포판의
-패키지로 설치하며 `pip install tkinter`를 사용하지 않습니다.
-화면 없는 서버에서는 GUI나 `--show` 대신 파일 저장을 사용합니다.
+Check that this command opens a Tkinter window. Tkinter is installed as a
+package of your Python distribution; do not use `pip install tkinter`.
+On a headless server, save files instead of using the GUI or `--show`.
 
-다른 데이터 폴더를 사용하려면 다음과 같이 지정합니다.
+To use a different data folder:
 
 ```python
 from sdrift_sky import SkyModel
 sky = SkyModel(data_dir="/absolute/path/to/docs/data")
 ```
 
-데이터는 처음 사용할 때 읽고 크기와 SHA-256을 검증한 뒤 인스턴스에 캐시합니다.
-여러 방향이나 날짜를 계산할 때 `sky` 인스턴스를 재사용합니다.
+Data are read on first use, checked against their size and SHA-256, and cached
+in the instance. Reuse the `sky` instance when computing many directions or
+dates.
 
-## 3. 공통 모드와 기본값
+## 3. Common modes and defaults
 
-### 3.1 `model`: 합산할 하늘 성분
+### 3.1 `model`: sky components to sum
 
-| 값 | 계산 성분 |
+| Value | Components |
 |---|---|
 | `"zodiacal"` | Zodiacal light |
 | `"dgl"` | Diffuse Galactic Light |
 | `"zodiacal_dgl"` | Zodiacal light + DGL |
 | `"airglow"` | Airglow |
-| `"total"` | Zodiacal light + DGL + Airglow; 기본값 |
+| `"total"` | Zodiacal light + DGL + Airglow; default |
 
-모든 모드가 같은 궤도와 관측 조건을 사용합니다. Zodiacal/DGL 모드에서도
-관측 영역을 제한하지만, 선택하지 않은 Airglow를 계산해 더하지는 않습니다.
+All modes use the same orbit and observing conditions. The zodiacal/DGL modes
+also restrict the observable region, but they do not compute or add airglow.
 
-### 3.2 `airglow_model`: Airglow 내부 성분 선택
+### 3.2 `airglow_model`: airglow emission set
 
-| 값 | 의미 |
+| Value | Meaning |
 |---|---|
-| `"combined"` | GLOW + 가정한 PALACE 야간 발광층; 기본값 |
-| `"glow"` | GLOW의 선택된 발광선 |
+| `"combined"` | GLOW + assumed PALACE night layers; default |
+| `"glow"` | GLOW selected emission lines |
 
-`model`과 `airglow_model`은 별개의 설정입니다.
+`model` and `airglow_model` are independent settings.
 
 ```python
 from sdrift_sky import SkyModel
@@ -127,90 +132,117 @@ p = sky.point(
 )
 ```
 
-`model="zodiacal"`, `"dgl"`, `"zodiacal_dgl"`에서는 `airglow_model`을 합산에
-사용하지 않습니다. GUI에서도 이 경우 Airglow 성분 선택을 비활성화합니다.
+With `model="zodiacal"`, `"dgl"`, or `"zodiacal_dgl"`, `airglow_model` is not
+used. The GUI disables the airglow selection in these modes.
 
-### 3.3 공통 입력 표
+### 3.3 Common settings
 
-`point()`, `evaluate()`, `sky_map()`에 다음 계산 설정을 전달할 수 있습니다.
+`point()`, `evaluate()`, and `sky_map()` accept the following settings.
 
-| Python 인자 | 기본값 | 단위·허용값·의미 |
+| Python argument | Default | Units, allowed values, meaning |
 |---|---|---|
-| `model` | `"total"` | 위 다섯 하늘 모드 |
+| `model` | `"total"` | one of the five sky modes above |
 | `airglow_model` | `"combined"` | `combined`, `glow` |
 | `band` | `"VIS"` | `UV1`, `UV2`, `UV3`, `VIS` |
 | `orbit` | `"dawn-dusk"` | `dawn-dusk`, `noon-midnight` |
 | `height` | `650.0` | km; `0 < height < 1500` |
-| `orbital_phase_deg` | `0.0` | 북쪽 기준 위상, degree; 360° 주기로 해석 |
-| `epoch` | `None` | 위상의 기준 UTC; `None`이면 위상 고정 |
-| `min_elv_deg` | `20.0` | degree; −90~180 |
-| `sun_avoidance` | `True` | 태양 회피 적용 여부 |
-| `sun_separation` | `90.0` | degree; 0~180 |
-| `moon_avoidance` | `True` | 달 회피 적용 여부 |
-| `moon_separation` | `60.0` | degree; 0~180 |
+| `orbital_phase_deg` | `0.0` | phase from the northernmost point, degrees; taken modulo 360° |
+| `epoch` | `None` | reference UTC of the phase; `None` keeps the phase fixed |
+| `min_elv_deg` | `20.0` | degrees; −90 to 180 |
+| `sun_avoidance` | `True` | apply Sun avoidance |
+| `sun_separation` | `90.0` | degrees; 0 to 180 |
+| `moon_avoidance` | `True` | apply Moon avoidance |
+| `moon_separation` | `60.0` | degrees; 0 to 180 |
 | `engine` | `"auto"` | `auto`, `numba`, `numpy` |
-| `step_km` | `2.0` | Airglow 적분의 최대 구간 길이, km; 양수; API에서 지정 |
+| `step_km` | `2.0` | maximum airglow integration step, km; positive; API only |
 
-`coords`는 기본 `"equatorial"`이며 `"galactic"`도 선택할 수 있습니다.
-좌표 입력 및 표시 규칙은 5절을 참조하십시오.
-`nside`는 `sky_map()`만, `contour_step`은 `plot()`만의 인자입니다.
-`data_dir`는 `SkyModel()`을 생성할 때 지정합니다.
+`coords` defaults to `"equatorial"`; `"galactic"` is also available. See
+Section 5 for coordinate input and display rules. `nside` is an argument of
+`sky_map()` only, and `contour_step` of `plot()` only. `data_dir` is given when
+constructing `SkyModel()`.
 
-### 3.4 밴드와 밝기 단위
+### 3.4 Bands and brightness units
 
-| Band | 파장 범위 |
+| Band | Wavelength range |
 |---|---|
 | `UV1` | 200–400 nm = 0.2–0.4 μm |
 | `UV2` | 250–400 nm = 0.25–0.4 μm |
 | `UV3` | 300–400 nm = 0.3–0.4 μm |
 | `VIS` | 400–700 nm = 0.4–0.7 μm |
 
-모든 밴드는 일정한 photon-counting throughput을 가정합니다.
-**모든 모드의 intensity는 MJy/sr**, 밝기는 **AB mag/arcsec²**로 통일했습니다.
-Airglow 단독에서도 같은 단위를 사용합니다.
-별도의 `photon_radiance` 또는 `airglow_photon_radiance`는 Airglow의 광자 단위 값입니다.
-선택하지 않은 성분은 관측 가능 방향에서 0입니다.
+All bands assume a constant photon-counting throughput.
+**Intensities are in MJy/sr in every mode**, and brightness is in
+**AB mag/arcsec²**. Airglow-only mode uses the same units. The separate
+`photon_radiance` and `airglow_photon_radiance` fields hold the airglow value in
+photon units. Components that are not selected are 0 in observable directions.
 
-합산은 같은 밴드의 intensity를 더한 뒤 AB 등급으로 변환합니다.
-AB 등급을 직접 더하지 않습니다. 큰 AB 등급일수록 더 어둡습니다.
+Sums are formed by adding intensities in the same band and then converting to
+AB magnitude; AB magnitudes are never added directly. A larger AB magnitude is
+fainter.
 
-## 4. 날짜, 궤도와 관측 조건
+## 4. Date, orbit, and observing conditions
 
 ### 4.1 UTC
 
-날짜는 ISO 형식의 문자열로 전달합니다.
+Pass the date as an ISO string.
 
 ```text
 2026-10-19T00:00:00Z
 2026-10-19T09:00:00+09:00
 ```
 
-위 두 시각은 같습니다. 시간대가 없는 문자열도 받지만 UTC로 해석하므로
-`Z` 또는 시간대 오프셋을 명시하는 편이 안전합니다.
-저장된 태양·달 위치 데이터의 사용 범위는 1900–2100년입니다.
-API의 `date`는 필수이고 CLI/GUI에서 생략하면 현재 UTC를 사용합니다.
+These two times are identical. Strings without a time zone are accepted but
+interpreted as UTC, so giving `Z` or an offset explicitly is safer. The stored
+Sun and Moon data cover 1900–2100. `date` is required in the API; the CLI/GUI
+use the current UTC when it is omitted.
 
-### 4.2 북쪽 기준 궤도 위상 φ
+### 4.2 Orbit model
 
-지구 중심에서 북쪽 기준으로 잰 궤도상 위치입니다. 두 궤도 모두 0°는 북쪽,
-180°는 남쪽이며, 북쪽은 지구 북극축을 궤도면에 투영한 방향입니다.
+Both orbits are circular sun-synchronous orbits of radius R + H (R = 6371 km,
+spherical Earth) with J2 secular rates only; there is no TLE/SGP4 propagation,
+drag, or higher harmonics.
 
-| 위상 | Dawn–dusk | Noon–midnight |
+- The inclination follows from the J2 sun-synchronous condition
+  dΩ/dt = −1.5 n J2 (R_eq/a)² cos i = 360° per tropical year
+  (J2 = 1.08262668e-3, R_eq = 6378.137 km, μ = 398600.4418 km³/s²).
+  At H = 650 km, i = 97.96°.
+- The ascending node is at a fixed local time in **mean** solar time:
+  LTAN 18:00 for dawn-dusk and 12:00 for noon-midnight.
+  RAAN = mean-Sun RA (of date) + 15° × (LTAN − 12 h). The plane therefore
+  follows the mean Sun; the true Sun differs by the equation of time and by its
+  declination.
+- Earth's pole is the mean pole of date (IAU 1976 precession; agrees with ERFA
+  to < 0.3 arcsec over 1900–2100). Nutation (< 0.005°) and the frame bias are
+  neglected.
+
+As a result the **satellite SZA varies around the orbit**. For dawn-dusk at
+650 km it spans about 82–98° at the equinoxes, 74.5–105.5° at the December
+solstice, and 58.6–121.4° at the June solstice, so near the June solstice the
+satellite enters Earth's shadow (SZA > 114.85° at 650 km). For noon-midnight
+the SZA spans about 2–178°.
+
+### 4.3 Orbital phase φ (convention NORTH_V2)
+
+φ is measured along the orbit from its northernmost point and advances in the
+direction of motion.
+
+| Phase | Dawn-dusk | Noon-midnight |
 |---|---|---|
-| 0° | 북쪽 | 북쪽 |
-| 90° | 태양 방향 × 북쪽 방향 | 자정 |
-| 180° | 남쪽 | 남쪽 |
-| 270° | 90° 방향의 반대 | 정오 |
+| 0° | northernmost point | northernmost point |
+| 90° | descending node, dawn side | descending node, midnight side |
+| 180° | southernmost point | southernmost point |
+| 270° | ascending node, dusk side | ascending node, noon side |
 
-Dawn–dusk 궤도면은 태양에 수직이고 위성 SZA는 90°입니다.
-Noon–midnight 궤도면은 태양 방향을 포함합니다.
-현재 모델은 TLE 없는 설계 단계의 원형 궤도 기하이며 실제 J2/SGP4 전파가 아닙니다.
+"Northernmost" refers to the orbit itself (the point of maximum declination,
+about 82° for i = 97.96°), not to a position above the geographic pole.
 
-### 4.3 위상 고정과 시간 진행
+### 4.4 Fixed phase and time evolution
 
-`epoch=None`이면 날짜를 바꿔도 입력한 위상을 유지합니다.
-태양·달 위치와 천구상의 배치는 날짜에 맞게 바뀝니다.
-`epoch`를 주면 그 UTC에 입력 위상에 있었다고 가정하고 공전 주기에 따라 진행합니다.
+With `epoch=None`, the given phase is kept when the date changes; the Sun, the
+Moon, and the orbit plane still move with the date. If `epoch` is given, the
+satellite is assumed to be at the given phase at that UTC, and the phase
+advances at the J2 secular argument-of-latitude rate
+du/dt = n [1 + 0.75 J2 (R_eq/a)² (8 cos² i − 2)] (draconic period).
 
 ```python
 from sdrift_sky import SkyModel
@@ -220,53 +252,60 @@ p = sky.point(
     model="total", orbit="noon-midnight", height=650,
     orbital_phase_deg=90, epoch="2026-10-17T00:00:00Z",
 )
-print(p["orbital_phase_deg"])  # 약 126.893°
+print(p["orbital_phase_deg"])  # about 126.847°
 ```
 
-고도 650 km에서 공전 주기는 약 97.58분입니다. 기준 UTC는 설계상 가정입니다.
+At 650 km the draconic period is 97.70 min (the Keplerian value is 97.58 min).
+The reference UTC is a design assumption.
 
-### 4.4 ELV와 회피각
+### 4.5 ELV and avoidance angles
 
-천정각 θ는 위성의 천정에서 시선까지의 각도입니다.
-0°는 천정, 90°는 수평, 180°는 천저입니다. 최소·최대 천정각 필터는 없습니다.
+The zenith angle θ is the angle between the satellite zenith and the line of
+sight: 0° is the zenith, 90° horizontal, 180° the nadir. There is no minimum or
+maximum zenith-angle filter.
 
-구형 지구 반지름 R=6371 km에서:
+For a spherical Earth of radius R = 6371 km:
 
 ```text
 ELV = 180° − asin[R / (R + H)] − θ
 ```
 
-ELV=0°는 지표면에 접하는 방향이고 양수는 그보다 바깥쪽 하늘입니다.
-고도 650 km에서는 `ELV ≈ 114.85° − θ`이며 기본 ELV≥20°는 θ≤94.85°입니다.
+ELV = 0° is tangent to the Earth's surface; positive values point above it.
+At 650 km, `ELV ≈ 114.85° − θ`, so the default ELV ≥ 20° means θ ≤ 94.85°.
 
-기본 관측 조건은 다음 세 가지를 동시에 만족해야 합니다.
+By default a direction must satisfy all three conditions:
 
 - ELV ≥ 20°
-- 태양과의 separation ≥ 90°
-- 달과의 separation ≥ 60°
+- separation from the Sun ≥ 90°
+- separation from the Moon ≥ 60°
 
-여기에 지구 차폐를 제외합니다. 회피 체크를 해제해도 지구 차폐는 해제되지 않습니다.
-ELV를 음수로 낮춰도 지구에 가려진 방향의 밝기는 반환하지 않습니다.
+Earth-occulted directions are also excluded. Turning off avoidance does not
+remove Earth occultation, and a negative ELV limit does not return brightness
+for directions blocked by the Earth.
 
-## 5. 좌표계와 방향 입력
+The Moon direction is the one seen from the satellite (parallax up to about
+1.1° in LEO). The Sun direction is geocentric (parallax from LEO < 0.003°).
+
+## 5. Coordinate systems and direction input
 
 ### 5.1 `point(ra, dec, date, ...)`
 
-**입력 RA, DEC는 항상 적도 좌표 degree**입니다.
-`coords="galactic"`을 지정해도 `point()`의 첫 두 숫자를 l, b로 해석하지 않습니다.
-RA는 360° 주기로 정규화하고 DEC 범위는 −90~90°입니다.
+**The input RA and DEC are always equatorial degrees.** Even with
+`coords="galactic"`, the first two numbers of `point()` are not read as l, b.
+RA is wrapped modulo 360°, and DEC must be within −90° to 90°.
 
 ### 5.2 `sky_map(..., coords=...)`
 
-- `equatorial`: RA, DEC HEALPix 지도
-- `galactic`: 은하 경도 l, 위도 b HEALPix 지도
+- `equatorial`: RA, DEC HEALPix map
+- `galactic`: Galactic longitude l, latitude b HEALPix map
 
-지도·태양·달·천정·회피 경계를 같은 좌표계로 표시합니다.
-FITS도 선택한 좌표계의 픽셀 격자로 저장합니다.
-`coords`는 `point()`와 `evaluate()`에서도 결과의 좌표계 메타데이터를 지정할 수 있지만,
-이들 함수의 입력 RA/DEC 또는 방향 벡터의 정의를 바꾸지는 않습니다.
+The map, Sun, Moon, zenith, and avoidance boundaries are shown in the same
+coordinate system, and the FITS file stores the pixel grid of the selected
+system. `point()` and `evaluate()` also accept `coords` as metadata for the
+result, but it does not change the meaning of their input RA/DEC or direction
+vectors.
 
-### 5.3 l, b 방향을 단일 좌표로 질의하는 방법
+### 5.3 Querying a single l, b direction
 
 ```python
 from sdrift_sky import SkyModel, vector, coordinates
@@ -279,39 +318,40 @@ p = sky.point(ra, dec, "2026-10-17T00:00:00Z", model="total")
 print(ra, dec, p["ab_mag_arcsec2"], p["visible"])
 ```
 
-기존 지구 중심 태양·달 벡터의 축을 고정 회전 행렬로 변환합니다.
-위성 시차나 추가 광행차를 계산하는 기능은 아닙니다.
+The conversion is a fixed rotation of the axes; it adds no parallax or
+aberration correction.
 
-## 6. 단일 좌표 반환값: `point()`
+## 6. Single-direction result: `point()`
 
-반환값은 Python `dict`이며, 각 방향의 값은 스칼라입니다.
+The result is a Python `dict` of scalars.
 
-| 키 | 단위·의미 |
+| Key | Units, meaning |
 |---|---|
-| `ra_deg`, `dec_deg` | 입력 방향의 적도 좌표 degree |
-| `utc`, `band`, `model`, `airglow_model`, `coords` | 계산 설정 |
-| `ab_mag_arcsec2` | AB mag/arcsec²; 제외 방향은 NaN |
-| `intensity_mjy_sr` | 선택 성분의 총 intensity, MJy/sr |
-| `zodiacal_mjy_sr`, `dgl_mjy_sr`, `airglow_mjy_sr` | 각 성분, MJy/sr |
-| `photon_radiance` | Airglow만의 photons/s/cm²/sr; 비선택 시 0 |
-| `view_allowed` | ELV와 태양·달 회피 조건 충족 |
-| `earth_occulted` | 지구 차폐 여부 |
-| `visible` | `view_allowed`이며 지구에 가리지 않음 |
-| `model_valid` | 현재 수치 모델의 지원 범위·cutoff 판정 |
+| `ra_deg`, `dec_deg` | equatorial coordinates of the input direction, degrees |
+| `utc`, `band`, `model`, `airglow_model`, `coords` | settings |
+| `ab_mag_arcsec2` | AB mag/arcsec²; NaN for excluded directions |
+| `intensity_mjy_sr` | total intensity of the selected components, MJy/sr |
+| `zodiacal_mjy_sr`, `dgl_mjy_sr`, `airglow_mjy_sr` | components, MJy/sr |
+| `photon_radiance` | airglow in photons/s/cm²/sr; 0 if airglow is not selected |
+| `view_allowed` | ELV and Sun/Moon avoidance satisfied |
+| `earth_occulted` | Earth occultation |
+| `visible` | `view_allowed` and not Earth-occulted |
+| `model_valid` | support range / cutoff check of the numerical model |
 | `valid` | `visible and model_valid` |
-| `display_ab_mag_arcsec2` | 관측 가능하면 밝기, 아니면 `None` |
-| `orbit`, `height_km`, `orbital_phase_deg` | 궤도 종류, km, 해당 UTC의 위상 degree |
-| `sza_deg`, `zenith_deg`, `elv_deg`, `minimum_elv_deg` | 태양천정각·천정각·ELV·하한, degree |
-| `sun_ra_dec_deg`, `moon_ra_dec_deg` | 태양·달의 지구 중심 적도 좌표 `(RA, DEC)` |
-| `sun_separation_deg`, `moon_separation_deg` | 시선과 태양·달 사이 각도, degree |
-| `sun_avoidance`, `moon_avoidance` | 회피 적용 여부 |
-| `minimum_sun_separation_deg`, `minimum_moon_separation_deg` | 설정 회피각, degree |
+| `display_ab_mag_arcsec2` | brightness if visible, otherwise `None` |
+| `orbit`, `height_km`, `orbital_phase_deg` | orbit type, km, phase at this UTC in degrees |
+| `sza_deg`, `zenith_deg`, `elv_deg`, `minimum_elv_deg` | satellite SZA, zenith angle, ELV, ELV limit, degrees |
+| `sun_ra_dec_deg`, `moon_ra_dec_deg` | equatorial `(RA, DEC)` of the Sun (geocentric) and the Moon (seen from the satellite) |
+| `sun_separation_deg`, `moon_separation_deg` | angle between the line of sight and the Sun/Moon, degrees |
+| `sun_avoidance`, `moon_avoidance` | avoidance switches |
+| `minimum_sun_separation_deg`, `minimum_moon_separation_deg` | avoidance angles, degrees |
 
-`visible=True`라도 `model_valid=False`일 수 있습니다. 이 경우 관측 기하는 가능하지만
-밝기는 부분적인 계산 결과입니다. `model_valid=True`도 누락 발광 성분까지 모두
-계산했다는 뜻은 아닙니다. 제외된 방향의 모델 판정은 해석하지 마십시오.
+`visible=True` can occur with `model_valid=False`: the direction is observable,
+but the brightness is a partial result. `model_valid=True` also does not mean
+that missing emission components are included. Do not interpret the model flag
+for excluded directions.
 
-## 7. 전천 지도: `sky_map()`
+## 7. All-sky map: `sky_map()`
 
 ```python
 from pathlib import Path
@@ -331,66 +371,67 @@ fig = sky.plot(result, contour_step=0.2)
 fig.savefig("output/python/total_galactic.png", dpi=160)
 ```
 
-계산 설정은 `point()`와 같고, `nside`와 지도 좌표계를 추가로 지정합니다.
+The settings are those of `point()`, plus `nside` and the map coordinate system.
 
-### 7.1 해상도와 픽셀 순서
+### 7.1 Resolution and pixel order
 
-`nside`는 양의 2의 거듭제곱이며 기본 128입니다. GUI에서는 16/32/64/128을
-선택합니다. API와 CLI는 다른 유효한 NSIDE도 받을 수 있습니다.
+`nside` must be a positive power of two; the default is 128. The GUI offers
+16/32/64/128; the API and CLI accept any valid NSIDE.
 
 ```text
-픽셀 수 N = 12 × nside²
-NSIDE 16  →   3,072개
-NSIDE 32  →  12,288개
-NSIDE 64  →  49,152개
-NSIDE 128 → 196,608개
+Number of pixels N = 12 × nside²
+NSIDE 16  →   3,072
+NSIDE 32  →  12,288
+NSIDE 64  →  49,152
+NSIDE 128 → 196,608
 ```
 
-배열 순서는 **RING HEALPix**입니다. 높은 NSIDE는 계산량을 늘리며, 입력
-Zodiacal/DGL 템플릿 자체의 NSIDE 128보다 더 세밀한 관측 정보를 만들어 주지는 않습니다.
-은하 좌표 지도는 은하 좌표 픽셀 중심의 실제 시선을 평가합니다.
+Arrays are in **RING HEALPix** order. A higher NSIDE costs more computation but
+does not add information beyond the NSIDE 128 zodiacal/DGL input templates.
+A Galactic map evaluates the actual line of sight of each Galactic pixel center.
 
-### 7.2 지도 딕셔너리의 주요 키
+### 7.2 Main keys of the map dictionary
 
-방향별 배열의 크기는 `(N,)`입니다. 다음 반환 구조는 모든 `model`에서 같습니다.
+Direction arrays have shape `(N,)`. The structure is the same for every `model`.
 
-| 키 | 내용 |
+| Key | Content |
 |---|---|
-| `flux`, `intensity_mjy_sr` | 같은 총 intensity 배열, MJy/sr |
-| `flux_unit` | 항상 `"MJy/sr"` |
-| `mag`, `ab_mag_arcsec2` | 같은 AB mag/arcsec² 배열 |
-| `zodiacal`, `dgl`, `airglow` | 각 성분 배열, MJy/sr |
-| `airglow_photon_radiance` | Airglow 광자 radiance 배열 |
-| `lit` | Airglow의 햇빛 받는 경로 부분 광자 radiance |
-| `view`, `view_allowed` | ELV·태양·달 회피 조건의 동일 마스크 |
-| `visible` | 회피 조건을 만족하고 지구에 가리지 않는 마스크 |
-| `earth`, `earth_occulted` | 지구 차폐의 동일 마스크 |
-| `model_valid` | 수치 모델 지원 범위 판정 |
+| `flux`, `intensity_mjy_sr` | the same total intensity array, MJy/sr |
+| `flux_unit` | always `"MJy/sr"` |
+| `mag`, `ab_mag_arcsec2` | the same AB mag/arcsec² array |
+| `zodiacal`, `dgl`, `airglow` | component arrays, MJy/sr |
+| `airglow_photon_radiance` | airglow photon radiance |
+| `lit` | airglow photon radiance from the sunlit part of the path |
+| `view`, `view_allowed` | the same ELV and Sun/Moon avoidance mask |
+| `visible` | avoidance satisfied and not Earth-occulted |
+| `earth`, `earth_occulted` | the same Earth-occultation mask |
+| `model_valid` | support range check of the numerical model |
 | `valid` | `visible & model_valid` |
-| `theta`, `elv` | 천정각과 ELV 배열, degree |
-| `hmin` | 전방 시선 최소 고도, km; 지구 차폐 시 0 |
-| `cutoff` | Airglow 광전자 cutoff 구간 포함 여부 |
-| `nside`, `coords`, `model`, `band`, `utc` | 지도 설정 |
-| `airglow_model`, `orbit`, `height`, `epoch`, `min_elv_deg` | 계산 설정 |
-| `state` | 위성 기하; 아래 표 참조 |
-| `sun`, `moon` | 적도 축의 단위벡터, 각각 `(3,)` |
-| `engine` | 실제 계산 경로: `numba`, `numpy`, `map interpolation` |
+| `theta`, `elv` | zenith angle and ELV, degrees |
+| `hmin` | minimum altitude along the forward line of sight, km; 0 if Earth-occulted |
+| `cutoff` | path crosses the airglow photoelectron cutoff region |
+| `nside`, `coords`, `model`, `band`, `utc` | map settings |
+| `airglow_model`, `orbit`, `height`, `epoch`, `min_elv_deg` | settings |
+| `state` | satellite geometry; see below |
+| `sun`, `moon` | unit vectors in equatorial axes, `(3,)` each; Moon seen from the satellite |
+| `engine` | actual path: `numba`, `numpy`, or `map interpolation` |
 
-`state`의 주요 키는 다음과 같습니다.
+Main keys of `state`:
 
-| 키 | 의미 |
+| Key | Meaning |
 |---|---|
-| `zenith` | 해당 UTC 위성의 천정 단위벡터, 적도 축 |
-| `orbital_phase_deg` | 기준 UTC로부터 진행시킨 후의 위상, degree |
-| `sza` | 위성 위치의 태양천정각, degree |
-| `period` | 공전 주기, **초** |
-| `limb_zenith_deg` | 지표면 접선 방향의 천정각, degree |
-| `axes` | 수치 적분의 기준 축에서 실제 적도 축으로의 회전행렬 `(3,3)` |
+| `zenith` | satellite zenith unit vector at this UTC, equatorial axes |
+| `orbital_phase_deg` | phase after evolution from the epoch, degrees |
+| `sza` | solar zenith angle at the satellite, degrees |
+| `period` | draconic period, **seconds** |
+| `inclination_deg`, `raan_deg`, `ltan_hours` | inclination, RAAN (mean equinox of date), LTAN |
+| `limb_zenith_deg` | zenith angle of the direction tangent to the surface, degrees |
+| `axes` | rotation matrix `(3,3)` from the integration reference frame to equatorial axes |
 
-반환 딕셔너리는 변형하지 않고 `plot()`과 `save_fits()`에 전달합니다.
-`_engine_result` 등 밑줄로 시작하는 항목은 내부 구현용입니다.
+Pass the returned dictionary unchanged to `plot()` and `save_fits()`. Keys
+starting with an underscore, such as `_engine_result`, are internal.
 
-### 7.3 관측 가능한 방향의 통계
+### 7.3 Statistics of observable directions
 
 ```python
 import numpy as np
@@ -400,20 +441,20 @@ sky = SkyModel()
 r = sky.sky_map("2026-10-17T00:00:00Z", model="total", nside=16)
 use = r["visible"] & r["model_valid"] & np.isfinite(r["mag"])
 if use.any():
-    print("선택한 픽셀 수:", np.count_nonzero(use))
-    print("AB 등급 범위:", r["mag"][use].min(), r["mag"][use].max())
+    print("Selected pixels:", np.count_nonzero(use))
+    print("AB magnitude range:", r["mag"][use].min(), r["mag"][use].max())
 else:
-    print("조건을 만족하는 유효 픽셀이 없습니다.")
+    print("No valid pixels satisfy the conditions.")
 ```
 
-등급을 단순 평균한 값은 평균 intensity의 등급과 다릅니다.
-밝기의 평균이 필요하면 `flux`를 평균한 뒤 `ab_magnitude()`로 변환합니다.
+The mean of magnitudes differs from the magnitude of the mean intensity. For a
+mean brightness, average `flux` and convert it with `ab_magnitude()`.
 
-## 8. 여러 시선의 직접 계산: `evaluate()`
+## 8. Direct evaluation of many lines of sight: `evaluate()`
 
-`directions`는 **적도 축의 단위벡터** `(3,)` 또는 `(N,3)`입니다.
-반환하는 방향별 값은 단일 벡터 입력도 `(1,)` 배열입니다.
-RA, DEC 숫자를 그대로 벡터 자리에 넣지 않습니다.
+`directions` are **unit vectors in equatorial axes**, shape `(3,)` or `(N,3)`.
+Even a single vector input returns `(1,)` arrays. Do not pass RA, DEC numbers in
+place of vectors.
 
 ```python
 import numpy as np
@@ -430,39 +471,40 @@ r = sky.evaluate(
 print(r["mag"], r["visible"], r["model_valid"])
 ```
 
-`evaluate()` 결과는 HEALPix 지도가 아니므로 바로 `plot()`이나 `save_fits()`에
-전달하지 않습니다. 전천 결과 저장에는 `sky_map()`을 사용합니다.
+The result of `evaluate()` is not a HEALPix map, so do not pass it to `plot()`
+or `save_fits()`. Use `sky_map()` for all-sky output.
 
-## 9. 지도 표시와 저장
+## 9. Plotting and saving
 
 ### 9.1 `plot(result, target=None, contour_step=0.2, figure=None)`
 
-`sky_map()` 결과를 받아 Matplotlib `Figure`를 반환합니다.
+Takes a `sky_map()` result and returns a Matplotlib `Figure`.
 
-| 인자 | 의미 |
+| Argument | Meaning |
 |---|---|
-| `result` | `sky_map()` 반환 딕셔너리 |
-| `target` | 선택 사항; 표시할 적도 좌표 `(RA, DEC)`, degree |
-| `contour_step` | 기본 0.2 mag; 0.1~1.0 mag 중 0.1 간격 |
-| `figure` | 기존 Matplotlib Figure에 그릴 때 지정; 생략 시 새 Figure |
+| `result` | dictionary returned by `sky_map()` |
+| `target` | optional equatorial `(RA, DEC)` to mark, degrees |
+| `contour_step` | default 0.2 mag; 0.1 to 1.0 mag in steps of 0.1 |
+| `figure` | existing Matplotlib Figure to draw into; a new one if omitted |
 
-이미지를 저장하려면 `fig.savefig("map.png")` 또는 `fig.savefig("map.pdf")`,
-화면을 띄우려면 `matplotlib.pyplot.show()`를 호출합니다.
-화면 없는 환경은 Python을 실행하기 전에 `MPLBACKEND=Agg`를 지정하거나,
-`matplotlib.pyplot`을 import하기 전에 `matplotlib.use("Agg")`를 호출합니다.
+Save with `fig.savefig("map.png")` or `fig.savefig("map.pdf")`, or call
+`matplotlib.pyplot.show()` to display it. In a headless environment, set
+`MPLBACKEND=Agg` before starting Python, or call `matplotlib.use("Agg")` before
+importing `matplotlib.pyplot`.
 
-색상 범위는 유효한 밝기 범위에서 자동 설정하며, 큰 등급은 어두운 색입니다.
-태양은 빨간 별과 빨간 점선, 달은 노란/주황 원과 주황 점선,
-최소 ELV는 녹색 점선, 천정은 파란 점으로 표시합니다.
-회색은 지구 차폐, 옅은 영역은 제외 방향, 빗금은 Airglow의 부분적인 계산 방향입니다.
+The color range is set from the valid brightness range; larger magnitudes are
+darker. The Sun is a red star with a red dashed boundary, the Moon a yellow/orange
+circle with an orange dashed boundary, the minimum ELV a green dashed line, and
+the zenith a blue dot. Gray is Earth occultation, pale areas are excluded
+directions, and hatching marks directions where the airglow result is partial.
 
 ### 9.2 `save_fits(result, filename)`
 
-파일명은 반드시 `.fits.gz`로 끝나야 합니다. 상위 폴더가 없으면 만들고,
-같은 이름의 기존 파일은 덮어씁니다. API v2는 모든 모드에서 다음 **14개 열**을
-같은 순서와 단위로 저장합니다.
+The file name must end with `.fits.gz`. Missing parent folders are created, and
+an existing file of the same name is overwritten. API v2 writes the following
+**14 columns** in the same order and units for every mode.
 
-| 열 이름 | 단위 |
+| Column | Units |
 |---|---|
 | `AB_MAG_ARCSEC2` | mag/arcsec² |
 | `INTENSITY_MJY_SR` | MJy/sr |
@@ -479,10 +521,33 @@ print(r["mag"], r["visible"], r["model_valid"])
 | `VISIBLE` | 0/1 |
 | `VALID` | 0/1 |
 
-열은 float32로 저장하므로 0/1 열은 읽은 뒤 필요에 따라 bool로 변환합니다.
-`COORDSYS=C`는 적도 좌표, `G`는 은하 좌표이며 `ORDERING=RING`입니다.
-헤더에는 `APIVER=2`, `MODEL`, `AGMODEL`, `FLUXUNIT=MJy/sr`, UTC, 위상,
-고도, ELV·회피 조건, 데이터 출처와 해시 등을 기록합니다.
+Columns are float32, so convert the 0/1 columns to bool after reading if needed.
+`COORDSYS=C` is equatorial, `G` Galactic, and `ORDERING=RING`.
+
+The header contains `APIVER=2`, `MODEL` (sky mode), `DATATYPE`, `AGMODEL`
+(airglow model), `FLUXUNIT=MJy/sr`, `DATE-UTC` (with the trailing `Z`), band
+limits, ELV and avoidance settings, and source hashes. Orbit keywords:
+
+| Keyword | Meaning |
+|---|---|
+| `ORBIT` | `dawn-dusk` or `noon-midnight` |
+| `ORBMODEL` | `SSO J2 CIRCULAR` |
+| `SAT_H` | satellite height, km |
+| `INCL` | inclination, deg |
+| `RAAN` | right ascension of the ascending node, deg (mean equinox of date) |
+| `LTAN` | local time of the ascending node, hours |
+| `SAT_SZA` | solar zenith angle at the satellite, deg |
+| `PHASE`, `PHASE0` | phase at this UTC; input phase |
+| `PHREF`, `PHCONV` | `NORTH`, `NORTH_V2` |
+| `PHMODE` | `MANUAL` or `EPOCH` |
+| `EPOCH` | reference UTC; written only when `PHMODE='EPOCH'` |
+| `PERIOD` | draconic period, s |
+| `ELVMIN`, `ELVREF`, `EARTHR` | ELV limit, `SPHERICAL EARTH`, 6371 km |
+| `MOONOBS` | `SATELLITE` (Moon seen from the satellite) |
+
+Zodiacal output also records `REF-UTC` (frame epoch of the zodiacal template)
+and `ROT-DEG`, the rotation of the template frame about the J2000 ecliptic
+north pole.
 
 ```python
 from astropy.io import fits
@@ -495,42 +560,45 @@ with fits.open("output/python/total_VIS_nside128_20261017_galactic.fits.gz") as 
     print(header["COORDSYS"], header["APIVER"], mag[visible].shape)
 ```
 
-이것은 **공통 Python API v2의 스키마**입니다. 기존 파일이나 웹 다운로드에는
-과거의 열 구성이 있을 수 있으므로 열 번호보다 열 이름을 사용합니다.
-태양·달·천정의 RA/DEC 헤더 값은 지도 좌표계와 무관하게 적도 좌표입니다.
+This is the **common Python API v2 schema**. Files saved by the web page use a
+different column layout that depends on the model (see
+[README_web.md](README_web.md)), and older files may differ as well, so select
+columns by name rather than by number. The Sun, Moon, and zenith RA/DEC header
+values are equatorial regardless of the map coordinate system.
 
-### 9.3 NaN, infinity와 마스크
+### 9.3 NaN, infinity, and masks
 
-- `NaN`: 회피·ELV 조건 또는 지구 차폐로 제외된 방향 등 값이 없는 경우
-- `+inf` 등급: 계산된 intensity가 0인 경우
-- `visible`: 관측 기하 판정
-- `model_valid`: 해당 수치 모델의 지원 범위 판정
-- `valid`: 두 판정을 모두 만족
+- `NaN`: no value, e.g. directions excluded by avoidance/ELV or Earth occultation
+- `+inf` magnitude: the computed intensity is 0
+- `visible`: observing geometry check
+- `model_valid`: support range check of the numerical model
+- `valid`: both checks satisfied
 
-NaN과 infinity를 JSON으로 저장하려면 `None`으로 바꿉니다.
-CLI의 단일 좌표 `--json` 출력은 이 변환을 자동으로 수행합니다.
+To store NaN or infinity in JSON, replace them with `None`. The CLI `--json`
+output for a single direction does this automatically.
 
-## 10. 명령행: 두 파일에서 같은 옵션 사용
+## 10. Command line: the same options in two files
 
-다음 두 명령은 **동일한 CLI**를 실행합니다.
+These two commands run **the same CLI**.
 
 ```sh
 python3 sdrift_sky.py --help
 python3 airglow_orbit.py --help
 ```
 
-### 10.1 단일 좌표
+### 10.1 Single direction
 
 ```sh
 python3 sdrift_sky.py --ra 0 --dec 60 \
   --date 2026-10-13T12:00:00Z --model zodiacal_dgl --band VIS
 ```
 
-`--ra`, `--dec`는 함께 지정합니다. 단일 좌표만 요청하면 지도는 만들지 않습니다.
-단일 좌표와 `--png`/`--fits` 등을 같이 지정하면 좌표 질의 후 지도도 만듭니다.
-`--coords galactic`을 주더라도 `--ra`, `--dec`는 적도 좌표입니다.
+Give `--ra` and `--dec` together. A single-direction request alone does not
+produce a map. With `--png`, `--fits`, etc. as well, the direction is queried
+and then the map is computed. `--ra` and `--dec` are equatorial even with
+`--coords galactic`.
 
-### 10.2 은하 좌표 총합 지도
+### 10.2 Galactic total map
 
 ```sh
 python3 sdrift_sky.py --model total --airglow-model combined \
@@ -540,7 +608,7 @@ python3 sdrift_sky.py --model total --airglow-model combined \
   --png output/python/total_galactic.png
 ```
 
-### 10.3 같은 조건에서 성분만 변경
+### 10.3 Changing only the components
 
 ```sh
 python3 sdrift_sky.py --model dgl --date 2026-10-17T00:00:00Z \
@@ -550,33 +618,33 @@ python3 sdrift_sky.py --model airglow --airglow-model glow \
   --png output/python/airglow.png
 ```
 
-### 10.4 주요 CLI 옵션과 API 대응
+### 10.4 Main CLI options and API equivalents
 
-| CLI | Python API / 의미 |
+| CLI | Python API / meaning |
 |---|---|
-| `--model` | `model` |
+| `--model` | `model`; default `total` |
 | `--airglow-model` | `airglow_model` |
-| `--date`, `--utc` | `date`; CLI 기본 현재 UTC |
-| `--ra`, `--dec` | `point()`의 적도 좌표 |
+| `--date`, `--utc` | `date`; CLI default is the current UTC |
+| `--ra`, `--dec` | equatorial coordinates for `point()` |
 | `--orbit` | `orbit` |
 | `--height`, `--H` | `height` |
 | `--orbital-phase-deg`, `--phase` | `orbital_phase_deg` |
-| `--epoch` | `epoch`; 생략 시 위상 고정 |
+| `--epoch` | `epoch`; fixed phase if omitted |
 | `--min-elv`, `--elv-min` | `min_elv_deg` |
-| `--sun-separation`, `--moon-separation` | 각 회피각 |
-| `--no-sun-avoidance`, `--no-moon-avoidance` | 대응 bool을 False로 설정 |
-| `--band`, `--coords`, `--nside` | 같은 이름의 지도 설정 |
+| `--sun-separation`, `--moon-separation` | avoidance angles |
+| `--no-sun-avoidance`, `--no-moon-avoidance` | set the matching switch to False |
+| `--band`, `--coords`, `--nside` | map settings of the same name |
 | `--engine` | `engine` |
-| `--data-dir` | 생성자의 `data_dir` |
-| `--contour-step` | `plot()`의 `contour_step` |
-| `--show` | 지도 창 열기 |
-| `--png`, `--pdf`, `--fits` | 각 출력 경로 |
-| `--json` | 단일 좌표 dict 저장; `--ra`, `--dec` 필요 |
-| `--gui` | 공통 GUI 열기 |
+| `--data-dir` | `data_dir` of the constructor |
+| `--contour-step` | `contour_step` of `plot()`; default 0.2 |
+| `--show` | open a map window |
+| `--png`, `--pdf`, `--fits` | output paths |
+| `--json` | save the single-direction dict; needs `--ra`, `--dec` |
+| `--gui` | open the common GUI |
 
-출력 옵션과 좌표를 모두 생략하면 지도를 계산하고 상태를 출력하지만
-파일 저장이나 창 표시는 하지 않습니다. 원하는 출력 옵션을 추가하십시오.
-`step_km`은 현재 API 인자이며 별도 CLI 옵션은 없습니다.
+If both the output options and the coordinates are omitted, the map is computed
+and a status line is printed, but nothing is saved or shown. Add the outputs you
+need. `step_km` is an API argument only; there is no CLI option.
 
 ## 11. GUI
 
@@ -585,121 +653,142 @@ python3 sdrift_sky.py --gui
 python3 airglow_orbit.py --gui
 ```
 
-두 명령은 같은 창을 엽니다. 다음과 같이 초기 설정을 전달할 수도 있습니다.
+Both commands open the same window. Initial settings can be passed:
 
 ```sh
 python3 sdrift_sky.py --gui --model dgl --coords galactic \
   --orbit noon-midnight --orbital-phase-deg 90 --height 650 --min-elv 25
 ```
 
-| 화면 항목 | 의미 |
+| Control | Meaning |
 |---|---|
-| UTC / Now / ±1 h / ±1 min | 관측 시각 입력·현재 시각·시각 이동 |
-| Map | `model` 선택 |
-| Coordinates | 적도/은하 좌표 표시 |
-| Orbit / H / 북쪽 기준 위상 φ | 궤도·고도·위상 |
-| Band / Model | 밴드와 Airglow 성분 `airglow_model` |
-| NSIDE | 지도 해상도 |
-| Min ELV | 최소 ELV |
-| Evolve phase from epoch / Phase epoch UTC | 기준 시각부터 위상 자동 진행 |
-| Sun/Moon avoidance / Min separation | 회피 적용과 각도 |
-| Contour | contour 간격 |
-| Calculate map | 현재 입력으로 지도 계산 |
-| Save PDF / PNG / FITS.GZ | 현재 결과 저장 |
+| UTC / Now / ±1 h / ±1 min | observing time, current time, time shift |
+| Map | `model` |
+| Coordinates | equatorial or Galactic display |
+| Orbit / H (km) / Orbital phase from north φ (°) | orbit, height, phase |
+| Band / Model | band and airglow emission set `airglow_model` |
+| NSIDE | map resolution |
+| Min ELV (deg) | minimum ELV |
+| Evolve phase from epoch / Phase epoch UTC | advance the phase from a reference time |
+| Sun/Moon avoidance / Min separation (deg) | avoidance switches and angles |
+| Contour (mag) | contour step |
+| Calculate map | compute the map with the current inputs |
+| Save PDF / PNG / FITS.GZ | save the current result |
 
-Map·Coordinates 선택과 시간 이동 버튼은 재계산을 요청합니다.
-일반 입력칸을 수정한 뒤에는 **Calculate map**을 누릅니다.
-Contour 간격 변경은 기존 결과를 다시 그립니다.
-포인터를 지도 위로 옮기면 선택 좌표계의 좌표·밝기·천정각·ELV를 표시합니다.
-계산은 작업 스레드에서 실행하며 첫 Numba 컴파일에는 시간이 더 걸릴 수 있습니다.
-`--ra`, `--dec`는 CLI 좌표 질의 옵션이고 GUI에 표적 입력칸을 추가하지는 않습니다.
+Changing Map or Coordinates, or pressing a time button, triggers a new
+calculation. After editing other fields, press **Calculate map**. Changing the
+contour step redraws the existing result. Moving the pointer over the map shows
+coordinates in the selected system, brightness, zenith angle, and ELV; the
+status line shows φ and the satellite SZA. Calculations run in a worker thread;
+the first Numba compilation can take longer. `--ra` and `--dec` are CLI query
+options; the GUI has no target input field.
 
-## 12. 빠른 계산과 반복 호출
+## 12. Faster and repeated calculation
 
-`engine="auto"`는 Numba를 사용할 수 있으면 Airglow 병렬 적분을 사용하고,
-없으면 NumPy 경로를 사용합니다. `engine="numpy"`로 명시할 수 있습니다.
-`engine="numba"`인데 Numba가 없으면 오류를 냅니다.
-Zodiacal/DGL만 선택하면 입력 지도를 내삽하며 Airglow LOS 적분은 수행하지 않습니다.
+`engine="auto"` uses parallel Numba airglow integration when Numba is available
+and the NumPy path otherwise. `engine="numpy"` selects NumPy explicitly.
+`engine="numba"` without Numba is an error for the `airglow` and `total` modes;
+the zodiacal/DGL modes interpolate the input maps and do no line-of-sight
+integration, so the engine setting does not matter there.
 
-같은 `SkyModel`을 재사용하면 데이터 읽기와 해시 검증을 반복하지 않습니다.
-처음에는 작은 NSIDE로 입력을 확인한 뒤 최종 결과에서 128로 높이는 방법이 편리합니다.
-배열에 대한 반복 계산은 개별 `point()` 호출보다 `evaluate()`로 묶을 수 있습니다.
+Reusing one `SkyModel` avoids repeated data reads and hash checks. Checking
+inputs with a small NSIDE before the final NSIDE 128 run is convenient. For many
+directions, one `evaluate()` call is faster than repeated `point()` calls.
 
-## 13. 좌표 보조 함수
+## 13. Coordinate helper functions
 
-| 함수 | 인터페이스 |
+| Function | Interface |
 |---|---|
-| `sdrift_sky.vector(ra, dec)` | degree 두 값을 적도 축 단위벡터 `(3,)`로 변환 |
-| `sdrift_sky.coordinates(v)` | 단일 단위벡터를 `(경도, 위도)` degree로 변환 |
-| `sky_coordinates.from_equatorial(v, coords)` | 적도 축 벡터 `(…,3)`를 선택 좌표계로 회전 |
-| `sky_coordinates.to_equatorial(v, coords)` | 선택 좌표계 벡터를 적도 축으로 회전 |
-| `sdrift_sky.utc_time(date)` | `(Unix 초, UTC 문자열)` 반환 |
-| `sdrift_sky.ab_magnitude(flux)` | MJy/sr를 AB mag/arcsec²로 변환 |
+| `sdrift_sky.vector(ra, dec)` | two angles in degrees to a unit vector `(3,)` |
+| `sdrift_sky.coordinates(v)` | one unit vector to `(longitude, latitude)` in degrees |
+| `sky_coordinates.from_equatorial(v, coords)` | rotate equatorial vectors `(…,3)` to the selected system |
+| `sky_coordinates.to_equatorial(v, coords)` | rotate vectors of the selected system to equatorial axes |
+| `sdrift_sky.utc_time(date)` | returns `(Unix seconds, UTC string)` |
+| `sdrift_sky.ab_magnitude(flux)` | MJy/sr to AB mag/arcsec² |
 
-`vector()`는 구면 경도·위도 벡터를 만드는 수식이므로 5.3절처럼 l, b를
-변환할 때에도 사용할 수 있습니다. `coordinates()`는 벡터 자체의 축을 해석하지
-않으므로 은하 축 벡터를 넣으면 l, b를 반환합니다.
+`vector()` is the generic longitude/latitude formula, so it can also convert
+l, b as in Section 5.3. `coordinates()` does not know the axes of the vector, so
+a vector in Galactic axes returns l, b.
 
-## 14. 이전 코드에서 전환할 때
+## 14. Migrating from earlier code
 
-| 이전 방식 | 공통 API v2의 권장 방식 |
+| Earlier | Common API v2 |
 |---|---|
-| `SkyModel`과 `AirglowOrbitModel` 사용법이 다름 | `from sdrift_sky import SkyModel`로 통일 |
+| `SkyModel` and `AirglowOrbitModel` used differently | use `from sdrift_sky import SkyModel` |
 | `kind="total"` | `model="total"` |
 | `kind="airglow", model="glow"` | `model="airglow", airglow_model="glow"` |
 | `--kind total --model combined` | `--model total --airglow-model combined` |
-| Airglow의 `flux`만 광자 단위 | 모든 `flux`는 MJy/sr; 광자는 별도 필드 |
-| 기존 SkyModel은 제외 방향에도 원래 밝기 반환 | 모든 모드에서 제외 방향은 NaN |
-| 기존 SkyModel에 궤도 조건 없음 | 모든 모드에 기본 궤도·ELV 조건 적용 |
-| 모드마다 FITS 열 구성 다름 | 공통 Python API v2는 같은 14개 열 |
+| only airglow `flux` in photon units | every `flux` in MJy/sr; photons in separate fields |
+| earlier SkyModel returned brightness in excluded directions | excluded directions are NaN in every mode |
+| earlier SkyModel had no orbit conditions | default orbit and ELV conditions in every mode |
+| FITS columns differed by mode | common Python API v2 uses the same 14 columns |
+| ideal solar-following orbit planes, `PHCONV=NORTH_V1` | J2 sun-synchronous orbits, `PHCONV=NORTH_V2` |
+| Keplerian period | draconic period |
+| geocentric Moon | Moon seen from the satellite |
 
-`from airglow_orbit import AirglowOrbitModel`은 `SkyModel`의 호환 이름이며
-**같은 새 API와 단위**를 사용합니다. 두 스크립트 CLI도 같습니다.
-`kind=`, `phase=`, `--kind`, `--phase`와 구형 GLOW 모델 표기를 해석하는 호환
-경로는 남겨 두었지만 새 코드에서는 권장 이름을 사용하십시오.
-충돌하는 `model`과 `kind`를 동시에 주면 오류입니다.
+`from airglow_orbit import AirglowOrbitModel` is a compatibility name for
+`SkyModel` and uses **the same API and units**. Both script CLIs are identical.
+The compatibility paths for `kind=`, `phase=`, `--kind`, `--phase`, and the old
+GLOW model names remain, but use the recommended names in new code. Giving
+conflicting `model` and `kind` is an error.
 
-이전 예제 `sky.point(0, 60, 날짜, band="VIS", model="zodiacal_dgl")`는 계속
-실행됩니다. 다만 기본 궤도·ELV 조건과 NaN 정책은 새 규칙을 따릅니다.
-과거 숫자와 비교할 때는 기본값·회피 조건·위상 정의·단위가 같은지 확인합니다.
-이전 noon-midnight 위상 u가 정오 0° 기준이었다면 새 북쪽 기준 φ는 `(u−90°) mod 360°`입니다.
+The earlier example `sky.point(0, 60, date, band="VIS", model="zodiacal_dgl")`
+still runs, but follows the new orbit/ELV defaults and NaN policy. When
+comparing with earlier numbers, check that defaults, avoidance conditions,
+phase convention, orbit model, and units match. The orbit plane now follows the
+J2 sun-synchronous geometry, so maps made with NORTH_V1 are not reproduced
+exactly at the same φ. If an older noon-midnight phase u was measured from noon,
+the north-referenced φ is `(u − 90°) mod 360°`.
 
-## 15. 자주 발생하는 문제
+## 15. Troubleshooting
 
-| 현상 | 확인할 내용 |
+| Symptom | What to check |
 |---|---|
-| `No module named ...` | 필요한 Python 파일과 requirements 설치 여부 |
-| `manifest.json` 없음 | `docs/data/` 전체 또는 `data_dir` 경로 |
-| SHA-256 불일치 | 코드와 데이터 버전 및 파일 손상; 데이터 파일을 함께 복원 |
-| `Unknown sky model` 등 | `model`과 `airglow_model`의 역할, 대소문자 |
-| 좌표 오류 | RA/DEC degree, DEC −90~90, 두 값을 함께 입력했는지 |
-| 밝기가 NaN | `visible`, ELV, 태양·달 separation, 지구 차폐 확인 |
-| 밝기가 무한대 | 계산 intensity가 0인지 확인 |
-| 지도 전체가 비어 있음 | 해당 위상의 관측 영역과 ELV·회피각의 교집합 확인 |
-| 빗금 표시 | Airglow 모델 지원 범위 또는 광전자 cutoff; 관측 금지의 뜻은 아님 |
-| GUI가 열리지 않음 | 그래픽 데스크톱, Tkinter, Matplotlib backend |
-| Numba 관련 오류 | Python/NumPy/Numba 호환 확인, 임시로 `engine="numpy"` 또는 `--engine numpy` |
-| 예전 저장 파일과 열 번호가 다름 | `APIVER`, 열 이름과 단위를 확인 |
+| `No module named ...` | required Python files and installed requirements |
+| `manifest.json` not found | complete `docs/data/` or the `data_dir` path |
+| SHA-256 mismatch | code/data versions and file damage; restore the data files together |
+| `Lunar data must be geocentric vectors in km` | `docs/data/moon_gcrs.f32.gz` is from an older export; update `docs/data/` |
+| `Unknown sky model` etc. | roles and spelling of `model` and `airglow_model` |
+| Coordinate errors | RA/DEC in degrees, DEC within −90 to 90, both values given |
+| NaN brightness | `visible`, ELV, Sun/Moon separation, Earth occultation |
+| Infinite brightness | computed intensity is 0 |
+| Entire map empty | overlap of the observable region at this phase with the ELV and avoidance limits |
+| Hatching | airglow support range or photoelectron cutoff; not an observing restriction |
+| GUI does not open | graphical desktop, Tkinter, Matplotlib backend |
+| Numba errors | Python/NumPy/Numba compatibility; use `engine="numpy"` or `--engine numpy` |
+| Column numbers differ from older files | check `APIVER`, column names and units |
 
-## 16. 물리 모델의 적용 범위
+## 16. Scope of the physical models
 
-날짜는 천구상 위치, 태양·달 방향과 궤도 위상에 적용합니다.
-Airglow 발광률은 평균 태양 활동의 사전 계산 표를 사용하며, 실시간 F10.7/Ap나
-관측 시공간의 모든 대기 변화를 계산하는 예측 모델은 아닙니다.
+The date sets the sky positions, the Sun and Moon directions, the orbit plane,
+and (in epoch mode) the orbital phase. Airglow emission rates come from a
+precomputed table for mean solar activity; this is not a forecast model with
+real-time F10.7/Ap or all atmospheric variations.
 
-DGL은 기존 C2022_all 상관 스펙트럼과 자기흡수 보정 가정을 사용하며
-짧은 UV 파장으로의 연장은 관측값이 아닌 가정입니다.
-Airglow에는 누락 성분, UV 흡수 미포함, dawn/dusk 화학 이력 미포함,
-PALACE 야간층의 전 지구 적용 가정 등이 남아 있습니다.
-달은 지구 중심 위치이며 위성 시차와 산란 달빛은 포함하지 않습니다.
+The zodiacal light is the SKYSURF model (O'Brien et al. 2025, a Kelsall-type
+model). Each band template stores annual Fourier harmonics (order 3) in the
+Sun's J2000 ecliptic longitude L, in a frame co-rotating with the Sun; for a
+given date the harmonics are combined at L and the map is sampled in the
+rotated frame. This includes the annual variation due to Earth's position
+relative to the tilted, offset dust cloud and to the Earth-Sun distance. Below
+0.25 μm the SKYSURF albedo and phase-function fits are extrapolations of the
+model calibration (this affects the 0.20–0.25 μm part of UV1).
 
-추가 자료:
+DGL uses the C2022_all correlation spectrum and the self-absorption correction
+assumptions; the extension to short UV wavelengths is an assumption, not an
+observation. Airglow still has missing components, no UV absorption, no
+dawn/dusk chemistry history, and applies the PALACE night layers globally.
+The Moon direction includes the satellite parallax; scattered moonlight is not
+included. The orbit is circular with J2 secular rates only, and Earth's shadow
+is a cylinder of radius R without penumbra, atmospheric extension, or
+oblateness.
 
-- [원본부터 데이터셋 생성](README_first.md)
+Further reading:
 
-- [궤도·ELV 기하와 배경 설명](README_airglow_orbit.md)
-- [웹 실행 안내](https://github.com/seoncafe/SDRIFT_sky/blob/main/README.md)
-- [Dawn–dusk 위상 그림](docs/assets/geometry_phase_dd.svg)
-- [Noon–midnight 위상 그림](docs/assets/geometry_phase_nm.svg)
-- [위성·지구 limb·ELV 기하 그림](docs/assets/geometry_limb_elv.svg)
-- [GLOW 사용 조건](docs/data/glowlicense.txt)
+- [Building the datasets from the sources](README_first.md)
+- [Orbit, ELV geometry and background](README_airglow_orbit.md)
+- [Web usage](README_web.md)
+- [Dawn-dusk phase figure](docs/assets/geometry_phase_dd.svg)
+- [Noon-midnight phase figure](docs/assets/geometry_phase_nm.svg)
+- [Satellite, Earth limb, and ELV geometry figure](docs/assets/geometry_limb_elv.svg)
+- [GLOW license](docs/data/glowlicense.txt)

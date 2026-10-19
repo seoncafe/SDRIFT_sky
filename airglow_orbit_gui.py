@@ -37,7 +37,7 @@ class Viewer:
         coordinate=entry(f,'coords','Coordinates',coords,('equatorial','galactic'),12)
         coordinate.bind('<<ComboboxSelected>>',lambda _:self.update())
         f=row(); entry(f,'orbit','Orbit','dawn-dusk',ORBIT_TYPES,16)
-        entry(f,'height','H (km)','650',width=7); entry(f,'orbital_phase_deg','북쪽 기준 궤도 위상 φ (°)','0',width=7)
+        entry(f,'height','H (km)','650',width=7); entry(f,'orbital_phase_deg','Orbital phase from north φ (°)','0',width=7)
         entry(f,'band','Band','VIS',BANDS,6); self.component=entry(f,'airglow_model','Model','combined',('combined','glow'),10)
         entry(f,'nside','NSIDE','128',('16','32','64','128'),5)
         f=row()
@@ -55,8 +55,8 @@ class Viewer:
         f=row(); self.button=ttk.Button(f,text='Calculate map',command=self.update);self.button.pack(side='left')
         for kind in ['pdf','png','fits.gz']:
             ttk.Button(f,text='Save '+kind.upper(),command=lambda k=kind:self.save(k)).pack(side='left',padx=5)
-        ttk.Label(controls,text='Ideal solar-following circles. Both: φ=0 projected north, 180 south. NM: φ=90 midnight, 270 noon. Zenith: 0 up, 90 horizontal, 180 down.').pack(anchor='w')
-        self.model_note=ttk.Label(controls,text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon is geocentric (no spacecraft parallax).')
+        ttk.Label(controls,text='Circular sun-synchronous orbits (J2; LTAN 18 h dawn-dusk, 12 h noon-midnight). φ=0 northernmost, 90 descending node (DD: dawn, NM: midnight), 180 southernmost. Zenith: 0 up, 90 horizontal, 180 down.').pack(anchor='w')
+        self.model_note=ttk.Label(controls,text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon direction is seen from the satellite (parallax included).')
         self.model_note.pack(anchor='w')
         self.status=tk.StringVar(value='Preparing map'); ttk.Label(root,textvariable=self.status,padding=8).pack(fill='x')
         self.figure=Figure(figsize=(13,7.5)); self.canvas=FigureCanvasTkAgg(self.figure,master=root)
@@ -86,7 +86,7 @@ class Viewer:
     def update(self):
         selected={label:key for key,label in MAP_LABELS.items()}[self.vars['kind'].get()]
         self.component.configure(state='readonly' if selected in ('airglow','total') else 'disabled')
-        self.model_note.configure(text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon is geocentric.' if selected in ('airglow','total') else 'Zodiacal rotates with date; DGL is fixed in the equatorial sky. Orbit, ELV and avoidance select observable directions.')
+        self.model_note.configure(text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon direction is seen from the satellite.' if selected in ('airglow','total') else 'Zodiacal light varies with date (annual harmonics); DGL is fixed in the equatorial sky. Orbit, ELV and avoidance select observable directions.')
         if self.busy:return
         try:
             v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','min_elv_deg','sun_separation','moon_separation']}

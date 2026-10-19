@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Ideal dawn-dusk / noon-midnight airglow maps using bundled browser data.
+"""Dawn-dusk / noon-midnight sun-synchronous airglow maps using the docs/data files.
 
 GLOW-derived calculations are governed by docs/data/glowlicense.txt.
-No TLE, orbit perturbations, UV absorption or twilight chemistry history.
+Circular orbits with J2 secular rates only: no TLE, drag, higher harmonics,
+UV absorption or twilight chemistry history.
 """
 from __future__ import annotations
 import argparse
@@ -15,7 +16,13 @@ from sky_coordinates import COORD_SYSTEMS, from_equatorial
 from sdrift_sky import _BackgroundModel as BackgroundModel, DEFAULT_DATA, BANDS, utc_time, coordinates, vector, boundary, ab_magnitude
 
 R = 6371.
+MU = 398600.4418            # km^3 s^-2
+J2 = 1.08262668e-3
+R_EQ = 6378.137             # km, J2 reference radius
+TROPICAL_YEAR_S = 365.24219*86400.
 ORBIT_TYPES = ('dawn-dusk', 'noon-midnight')
+# Local time of the ascending node in mean solar time (hours).
+LTAN_HOURS = {'dawn-dusk': 18., 'noon-midnight': 12.}
 MAP_LABELS = {'zodiacal':'Zodiacal light', 'dgl':'DGL', 'zodiacal_dgl':'Zodiacal light + DGL',
               'airglow':'Airglow', 'total':'Zodiacal + DGL + Airglow'}
 try:
@@ -26,35 +33,99 @@ except ImportError:
     prange = range
 
 
-def orbit_state(sun, height=650., orbit='dawn-dusk', orbital_phase_deg=0., unix=0., epoch=None):
-    """North-referenced orbital phase, optionally advanced from an explicit UTC epoch.
+def precession_matrix(unix):
+    """IAU 1976 precession, J2000 (GCRS axes) -> mean equator/equinox of date.
 
-    Both orbits: phi=0 projected north, 180 south. Positive direction:
-    DD phi=90: s cross north; NM phi=90: midnight, 270 noon.
-    Solar-following planes are ideal.
+    Agrees with ERFA pmat06 to < 0.3 arcsec over 1900-2100.  Nutation
+    (< 0.005 deg) and the 0.02 arcsec frame bias are neglected; UTC is used
+    for TT (69 s, < 0.001 deg in the mean Sun).
+    """
+    t = (unix/86400.+2440587.5-2451545.)/36525.
+    a = np.deg2rad(1/3600.)
+    zeta = (2306.2181*t+.30188*t*t+.017998*t**3)*a
+    z = (2306.2181*t+1.09468*t*t+.018203*t**3)*a
+    theta = (2004.3109*t-.42665*t*t-.041833*t**3)*a
+    def r3(x): c, s = np.cos(x), np.sin(x); return np.array([[c, s, 0.], [-s, c, 0.], [0., 0., 1.]])
+    def r2(x): c, s = np.cos(x), np.sin(x); return np.array([[c, 0., -s], [0., 1., 0.], [s, 0., c]])
+    return r3(-z)@r2(theta)@r3(-zeta)
+
+
+def mean_sun_ra_deg(unix):
+    """Right ascension of the fictitious mean Sun (mean equinox of date)."""
+    t = (unix/86400.+2440587.5-2451545.)/36525.
+    return (280.46646+36000.76983*t+.0003032*t*t) % 360
+
+
+def sso_elements(height):
+    """Sun-synchronous inclination and J2 secular argument-of-latitude rate.
+
+    Circular orbit of radius R+H (spherical-Earth altitude).  The node
+    precesses at 360 deg per tropical year:
+    dOmega/dt = -1.5 n J2 (R_eq/a)^2 cos i.
+    du/dt = n [1 + 0.75 J2 (R_eq/a)^2 (8 cos^2 i - 2)] (Vallado, e = 0).
+    """
+    a = R+height
+    n = np.sqrt(MU/a**3)
+    k = J2*(R_EQ/a)**2
+    cos_i = -(2*np.pi/TROPICAL_YEAR_S)/(1.5*n*k)
+    if not -1 <= cos_i <= 1: raise ValueError('No sun-synchronous circular orbit at this height')
+    u_rate = n*(1+.75*k*(8*cos_i**2-2))
+    return float(np.rad2deg(np.arccos(cos_i))), float(u_rate)
+
+
+def orbit_state(sun, height=650., orbit='dawn-dusk', orbital_phase_deg=0., unix=0., epoch=None):
+    """Circular sun-synchronous orbit; north-referenced phase, optionally advanced from an epoch.
+
+    The ascending node is at LTAN_HOURS mean solar time (dawn-dusk 18 h,
+    noon-midnight 12 h), so the plane follows the mean Sun; the true Sun
+    differs by the equation of time and its declination, and the satellite
+    can enter Earth's shadow.  phi = 0 is the northernmost point, phi = 90
+    the descending node (dawn side for dawn-dusk, midnight side for
+    noon-midnight), phi = 180 the southernmost point.
     """
     if orbit not in ORBIT_TYPES or not np.isfinite(height) or not 0 < height < 1500 or not np.isfinite(orbital_phase_deg):
         raise ValueError('Choose an orbit; 0 < H < 1500 km; finite orbital_phase_deg')
     s = np.asarray(sun, dtype=float); s = s/np.linalg.norm(s)
-    k = np.array([0., 0., 1.]) if abs(s[2]) < .999999 else np.array([1., 0., 0.])
-    north = k-(k@s)*s; north /= np.linalg.norm(north)
-    east = np.cross(s, north)
-    period = 2*np.pi*np.sqrt((R+height)**3/398600.4418)
-    phi = (orbital_phase_deg+(0 if epoch is None else (unix-epoch)*360/period)) % 360
+    inclination, u_rate = sso_elements(height)
+    period = 2*np.pi/u_rate
+    raan = (mean_sun_ra_deg(unix)+15*(LTAN_HOURS[orbit]-12)) % 360
+    i, o = np.deg2rad(inclination), np.deg2rad(raan)
+    to_gcrs = precession_matrix(unix).T
+    node = to_gcrs@np.array([np.cos(o), np.sin(o), 0.])
+    normal = to_gcrs@np.array([np.sin(i)*np.sin(o), -np.sin(i)*np.cos(o), np.cos(i)])
+    north = np.cross(normal, node)  # direction of the northernmost point
+    phi = (orbital_phase_deg+(0 if epoch is None else np.rad2deg((unix-epoch)*u_rate))) % 360
     a = np.deg2rad(phi)
-    zenith = np.cos(a)*north+np.sin(a)*(east if orbit == 'dawn-dusk' else -s)
+    zenith = np.cos(a)*north-np.sin(a)*node
     zenith /= np.linalg.norm(zenith)
     c = np.clip(zenith@s, -1., 1.)
     if abs(abs(c)-1.) < 1e-14: c = np.sign(c)
     z = zenith-c*s
-    z = z/np.linalg.norm(z) if np.linalg.norm(z) > 1e-10 else north
+    if np.linalg.norm(z) > 1e-10:
+        z = z/np.linalg.norm(z)
+    else:  # satellite on the Sun line: any perpendicular axis
+        z = np.cross(s, node); z /= np.linalg.norm(z)
     # Columns map the reference Sun +X / satellite in XZ to the real sky.
     axes = np.column_stack((s, np.cross(z, s), z))
     return dict(sun=s, zenith=zenith, sza=float(np.rad2deg(np.arccos(c))),
                 orbital_phase_deg=float(phi), period=float(period), axes=axes,
+                inclination_deg=inclination, raan_deg=float(raan), ltan_hours=LTAN_HOURS[orbit],
                 limb_zenith_deg=float(180-np.rad2deg(np.arcsin(R/(R+height)))))
 
 
+def topocentric_moon(moon_km, zenith, height):
+    """Unit Moon direction seen from the satellite (parallax up to ~1.1 deg in LEO)."""
+    moon_km = np.asarray(moon_km, dtype=float)
+    if np.linalg.norm(moon_km) < 1e4:
+        raise ValueError('Lunar data must be geocentric vectors in km; rerun export_web_data.py --moon-only')
+    v = moon_km-(R+height)*np.asarray(zenith)
+    return v/np.linalg.norm(v)
+
+
+# Earth shadow: cylinder of radius R behind the Earth (x < 0 in the reference
+# frame).  Deliberate approximation: no penumbra (about 60 km wide at LEO
+# distances), no extension of the shadow by the atmosphere (tens of km) and no
+# oblateness.  The same test is used in docs/assets/sky-core.mjs.
 def _kernel(height, sza, directions, q, z, chi, support, step):
     """Midpoint LOS integral, same samples/units as the browser integrator."""
     out = np.full((len(directions), 6), np.nan)
@@ -127,19 +198,21 @@ class _OrbitModel(BackgroundModel):
                  epoch=None, sun_avoidance=True, sun_separation=90.,
                  moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=20., kind='total'):
         if kind not in MAP_LABELS: raise ValueError('Unknown map kind')
-        if phase is not None: orbital_phase_deg = phase  # alias; NORTH_V1 convention
+        if phase is not None: orbital_phase_deg = phase  # alias; NORTH_V2 convention
         if band not in BANDS or model not in ('glow', 'combined'): raise ValueError('Unknown band/model')
         if not all(np.isfinite(x) for x in (sun_separation, moon_separation, step_km)) or not (0 <= sun_separation <= 180 and 0 <= moon_separation <= 180 and step_km > 0):
             raise ValueError('Separation angles must be 0-180; positive LOS step')
         if not np.isfinite(min_elv_deg) or not -90 <= min_elv_deg <= 180:
             raise ValueError('Minimum ELV must be finite and between -90 and 180 degrees')
         if engine not in ('auto', 'numba', 'numpy'): raise ValueError('Unknown engine')
-        if engine == 'numba' and not HAVE_NUMBA: raise ValueError('Install numba or use --engine numpy')
+        if engine == 'numba' and not HAVE_NUMBA and kind in ('airglow', 'total'):
+            raise ValueError('Install numba or use --engine numpy')
         v = np.asarray(directions, dtype=float).reshape(-1, 3)
         if not np.isfinite(v).all() or not np.allclose(np.linalg.norm(v, axis=1), 1.): raise ValueError('LOS must be finite unit vectors')
         unix, utc = utc_time(date); epoch_unix = None if epoch is None else utc_time(epoch)[0]
-        sun, moon = self._body(unix, 'solar'), self._body(unix, 'lunar')
+        sun = self._body(unix, 'solar')
         state = orbit_state(sun, height, orbit, orbital_phase_deg, unix, epoch_unix)
+        moon = topocentric_moon(self._body_vector(unix, 'lunar'), state['zenith'], height)
         theta = np.rad2deg(np.arccos(np.clip(v@state['zenith'], -1, 1)))
         elv = state['limb_zenith_deg']-theta
         view = elv >= min_elv_deg-1e-9
@@ -155,6 +228,8 @@ class _OrbitModel(BackgroundModel):
             shown = view & ~earth
             for key in ('flux','mag','zodiacal','dgl'):
                 result[key] = np.where(shown,result[key],np.nan)
+            result['moon'] = moon
+            result['moon_angle'] = np.rad2deg(np.arccos(np.clip(v@moon, -1, 1)))
             result.update(kind=kind, height=height, orbit=orbit, orbital_phase_deg=orbital_phase_deg,
                 epoch=epoch, min_elv_deg=min_elv_deg, theta=theta, elv=elv, view=view, earth=earth,
                 valid=~earth, hmin=np.where(earth,0,hmin), state=state, engine='map interpolation')
@@ -223,12 +298,13 @@ class _OrbitModel(BackgroundModel):
             names += ['ZODIACAL_MJY_SR', 'DGL_MJY_SR', 'AIRGLOW_MJY_SR', 'AIRGLOW_PHOTON_RADIANCE']
             units += ['MJy/sr', 'MJy/sr', 'MJy/sr', 'photons/s/cm2/sr']
         lo, hi = self.manifest['bands'][r['band']]
-        headers = [('DATE-UTC', r['utc']), ('ORBIT', r['orbit']), ('ORBMODEL', 'IDEAL SOLAR CIRCLE'),
-                   ('SAT_H', r['height']), ('SAT_SZA', r['state']['sza']), ('PHASE', r['state']['orbital_phase_deg']),
-                   ('PHREF', 'NORTH'), ('PHCONV', 'NORTH_V1'), ('PHASE0', r['orbital_phase_deg']), ('PHMODE', 'EPOCH' if r['epoch'] else 'MANUAL'),
+        headers = [('DATE-UTC', r['utc']), ('ORBIT', r['orbit']), ('ORBMODEL', 'SSO J2 CIRCULAR'),
+                   ('SAT_H', r['height']), ('INCL', r['state']['inclination_deg']), ('RAAN', r['state']['raan_deg']),
+                   ('LTAN', r['state']['ltan_hours']), ('SAT_SZA', r['state']['sza']), ('PHASE', r['state']['orbital_phase_deg']),
+                   ('PHREF', 'NORTH'), ('PHCONV', 'NORTH_V2'), ('PHASE0', r['orbital_phase_deg']), ('PHMODE', 'EPOCH' if r['epoch'] else 'MANUAL'),
                    ('PERIOD', r['state']['period']), ('ELVMIN', r['min_elv_deg']), ('ELVREF', 'SPHERICAL EARTH'), ('EARTHR', R),
                    ('SUNMASK', r['sun_avoidance']), ('ELONGMIN', r['sun_separation']),
-                   ('MOONMASK', r['moon_avoidance']), ('MOONMIN', r['moon_separation']), ('MOONOBS', 'GEOCENTRIC'),
+                   ('MOONMASK', r['moon_avoidance']), ('MOONMIN', r['moon_separation']), ('MOONOBS', 'SATELLITE'),
                    ('BAND', r['band']), ('BANDMIN', lo/1000), ('BANDMAX', hi/1000), ('PHOTCNT', True),
                    ('FULLBAND', False), ('ABSORPT', False), ('TWILHIST', False), ('INTVER', 2), ('DS_KM', r['step_km']),
                    ('TABLESHA', self.manifest['airglow'][r['model']]['source_sha256']), ('MODEL', r['model'])]
@@ -295,7 +371,7 @@ class _OrbitModel(BackgroundModel):
         fig.suptitle(f"{r.get('coords','equatorial').title()} | {label} | {r['band']} {lo_nm:g}-{hi_nm:g} nm | UTC {r['utc'].replace('T', ' ').rstrip('Z')}\n"
                      f"{r['orbit']} | H={r['height']:g} km | φ={r['state']['orbital_phase_deg']:.1f}° | SZA={r['state']['sza']:.1f}° | ELV ≥ {r['min_elv_deg']:g}°", fontsize=11)
         fig.colorbar(im, ax=ax, orientation='horizontal', fraction=.045, pad=.12, label='AB mag / arcsec²')
-        model_note='Ideal solar-following circle; mean emission table; no UV absorption or twilight history' if r['kind'] in ('airglow','total') else 'Ideal solar-following circle; zodiacal rotates with date; DGL stays fixed in the equatorial sky'
+        model_note='Circular sun-synchronous orbit (J2); mean emission table; no UV absorption or twilight history' if r['kind'] in ('airglow','total') else 'Circular sun-synchronous orbit (J2); zodiacal light varies with date; DGL stays fixed in the equatorial sky'
         fig.text(.5,.025, f"Sun separation ≥ {r['sun_separation']:g}° ({'on' if r['sun_avoidance'] else 'off'}); Moon ≥ {r['moon_separation']:g}° ({'on' if r['moon_avoidance'] else 'off'}) | ELV ≥ {r['min_elv_deg']:g}° | Gray: Earth; hatch: partial model; pale: excluded\n{model_note}", ha='center', fontsize=8)
         return fig
 

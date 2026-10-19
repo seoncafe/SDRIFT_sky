@@ -6,9 +6,9 @@
 <path d="M136.00,254.00 L463.00,254.00" fill="none" stroke="#a4b5c4" stroke-width="2" stroke-dasharray="7 6"/>
 <circle cx="300" cy="254" r="46" fill="url(#earth)" stroke="#7897b5" stroke-width="1.5"/>
 <text x="300.00" y="279.00" text-anchor="middle" class="bold">지구</text>
-<text x="300.00" y="65.00" text-anchor="middle" class="bold blue">0° · 북쪽</text>
-<text x="300.00" y="89.00" text-anchor="middle" class="small">북극축을 궤도면에 투영</text>
-<text x="300.00" y="438.00" text-anchor="middle" class="bold blue">180° · 남쪽</text>
+<text x="300.00" y="65.00" text-anchor="middle" class="bold blue">0° · 최북단</text>
+<text x="300.00" y="89.00" text-anchor="middle" class="small">경사각 97.96° (650 km)</text>
+<text x="300.00" y="438.00" text-anchor="middle" class="bold blue">180° · 최남단</text>
 <text x="110.00" y="250.00" text-anchor="middle" class="bold blue">90°</text>
 <text x="490.00" y="250.00" text-anchor="middle" class="bold blue">270°</text>
 <text x="110.00" y="278.00" text-anchor="middle" class="bold">자정</text>
@@ -21,6 +21,6 @@
 <path d="M300.00,181.00 A73,73 0 0 0 248.38,202.38" fill="none" stroke="#008060" stroke-width="3" marker-end="url(#arrow)"/>
 <text x="268.00" y="169.00" text-anchor="middle" class="green bold">φ</text>
 <path d="M407.01,157.65 A144,144 0 0 0 344.50,117.05" fill="none" stroke="#226ca3" stroke-width="3" marker-end="url(#arrow)"/>
-<text x="300.00" y="478.00" text-anchor="middle" class="small">증가 방향: 북쪽 → 자정 → 남쪽 → 정오</text>
+<text x="300.00" y="478.00" text-anchor="middle" class="small">증가 방향: 최북단 → 자정 → 최남단 → 정오</text>
 <text x="300.00" y="510.00" text-anchor="middle" class="small">예시 위상 φ = 45° · 각도는 지구 중심에서 측정</text>
 </svg>

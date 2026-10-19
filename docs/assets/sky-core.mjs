@@ -1,4 +1,4 @@
-// S-DRIFT browser routines, modified 2026-10-17. GLOW-derived integration:
+// S-DRIFT browser routines, modified 2026-10-20. GLOW-derived integration:
 // This software is based on calculations using the GLOW model, governed by the Open Source
 // Academic Research License Agreement contained in data/glowlicense.txt.
 export const R=6371, D=Math.PI/180, ARC=206264.80624709636;
@@ -57,29 +57,60 @@ export function rotation(v,angle){
   return [x2,c*y2-s*z,s*y2+c*z];
 }
 export function sunLongitude(v){const e=23.439291111*D;return Math.atan2(Math.cos(e)*v[1]+Math.sin(e)*v[2],v[0]);}
-export function solarAt(unix,data,meta){
+// Annual harmonics (A0,C1,S1,...) of the zodiacal template at Sun longitude L; same as sdrift_sky.zodiacal_template.
+export function zodiacalTemplate(coeffs,npix,sunLon){
+  const terms=coeffs.length/npix,out=new Float64Array(npix),w=[1];
+  for(let k=1;k<=(terms-1)/2;k++)w.push(Math.cos(k*sunLon),Math.sin(k*sunLon));
+  for(let t=0;t<terms;t++){const c=w[t],o=t*npix;for(let i=0;i<npix;i++)out[i]+=c*coeffs[o+i];}
+  return out;
+}
+export function bodyVector(unix,data,meta){
   const u=(unix-meta.start_unix)/meta.step_seconds,i=Math.floor(u),f=u-i;
   if(i<0||i>=meta.count-1)throw Error('날짜는 1900–2100년 범위에서 선택하십시오.');
-  const v=[0,1,2].map(j=>data[i*3+j]*(1-f)+data[(i+1)*3+j]*f),norm=Math.hypot(...v);
-  return v.map(x=>x/norm);
+  return [0,1,2].map(j=>data[i*3+j]*(1-f)+data[(i+1)*3+j]*f);
+}
+export function solarAt(unix,data,meta){const v=bodyVector(unix,data,meta),norm=Math.hypot(...v);return v.map(x=>x/norm);}
+// Moon seen from the satellite; lunar data are geocentric km vectors (same as airglow_orbit.topocentric_moon).
+export function topocentricMoon(moonKm,zenith,H){
+  if(Math.hypot(...moonKm)<1e4)throw Error('Lunar data must be geocentric km vectors');
+  const v=moonKm.map((x,j)=>x-(R+H)*zenith[j]),n=Math.hypot(...v);return v.map(x=>x/n);
 }
 export function abZodi(value){return value>0?-2.5*Math.log10(value*1e6/ARC**2/3631):Infinity;}
 export function airglowMjy(value,band){return 6.62607015e-10*value/Math.log(band[1]/band[0]);}
 export function abAir(value,band){return value>0?-2.5*Math.log10(6.62607015e-27*value/(Math.log(band[1]/band[0])*ARC**2)/(3631e-23)):Infinity;}
 
-// Ideal solar-following circles for initial design; not an SGP4/J2 propagator.
+// Circular sun-synchronous orbits with J2 secular rates; same formulas as airglow_orbit.py.
+const MU=398600.4418,J2=1.08262668e-3,R_EQ=6378.137,TROPICAL_YEAR_S=365.24219*86400;
+export const LTAN_HOURS={'dawn-dusk':18,'noon-midnight':12};
+const centuries=unix=>(unix/86400+2440587.5-2451545)/36525;
+// IAU 1976 precession, J2000 -> mean of date (row-major 3x3).
+export function precessionMatrix(unix){
+ const t=centuries(unix),a=D/3600;
+ const zeta=(2306.2181*t+.30188*t*t+.017998*t**3)*a,z=(2306.2181*t+1.09468*t*t+.018203*t**3)*a,th=(2004.3109*t-.42665*t*t-.041833*t**3)*a;
+ const r3=x=>[[Math.cos(x),Math.sin(x),0],[-Math.sin(x),Math.cos(x),0],[0,0,1]],r2=x=>[[Math.cos(x),0,-Math.sin(x)],[0,1,0],[Math.sin(x),0,Math.cos(x)]];
+ const mul=(A,B)=>A.map(r=>[0,1,2].map(j=>r.reduce((s,x,k)=>s+x*B[k][j],0)));
+ return mul(mul(r3(-z),r2(th)),r3(-zeta));
+}
+export function meanSunRaDeg(unix){const t=centuries(unix);return mod(280.46646+36000.76983*t+.0003032*t*t,360);}
+export function ssoElements(H){
+ const a=R+H,n=Math.sqrt(MU/a**3),k=J2*(R_EQ/a)**2,cosI=-(2*Math.PI/TROPICAL_YEAR_S)/(1.5*n*k);
+ if(cosI<-1||cosI>1)throw Error('No sun-synchronous circular orbit at this height');
+ return {inclinationDeg:Math.acos(cosI)/D,uRate:n*(1+.75*k*(8*cosI*cosI-2))};
+}
 export function orbitState(sun,H,orbit='dawn-dusk',orbitalPhaseDeg=0,unix=0,epoch=null){
  if(!['dawn-dusk','noon-midnight'].includes(orbit))throw Error('Unknown orbit');
  if(!Number.isFinite(H)||H<=0||H>=1500||!Number.isFinite(orbitalPhaseDeg))throw Error('Invalid orbit input');
  const dot=(a,b)=>a.reduce((v,x,j)=>v+x*b[j],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>{const n=Math.hypot(...a);return a.map(x=>x/n);};
- const s=unit(sun),k=Math.abs(s[2])<.999999?[0,0,1]:[1,0,0];
- const north=unit(k.map((x,j)=>x-dot(k,s)*s[j])),east=cross(s,north);
- const period=2*Math.PI*Math.sqrt((R+H)**3/398600.4418);
- const phi=mod(orbitalPhaseDeg+(epoch===null?0:(unix-epoch)*360/period),360),a=phi*D;
- const zenith=unit(s.map((x,j)=>Math.cos(a)*north[j]+Math.sin(a)*(orbit==='dawn-dusk'?east[j]:-x)));
+ const s=unit(sun),{inclinationDeg,uRate}=ssoElements(H),period=2*Math.PI/uRate;
+ const raan=mod(meanSunRaDeg(unix)+15*(LTAN_HOURS[orbit]-12),360),i=inclinationDeg*D,o=raan*D,P=precessionMatrix(unix);
+ const toGcrs=v=>[0,1,2].map(j=>P.reduce((acc,row,k)=>acc+row[j]*v[k],0));
+ const node=toGcrs([Math.cos(o),Math.sin(o),0]),normal=toGcrs([Math.sin(i)*Math.sin(o),-Math.sin(i)*Math.cos(o),Math.cos(i)]),north=cross(normal,node);
+ const phi=mod(orbitalPhaseDeg+(epoch===null?0:(unix-epoch)*uRate/D),360),a=phi*D;
+ const zenith=unit(north.map((x,j)=>Math.cos(a)*x-Math.sin(a)*node[j]));
  let c=clamp(dot(zenith,s),-1,1);if(Math.abs(Math.abs(c)-1)<1e-14)c=Math.sign(c);const sz=Math.acos(c)/D;
- const proj=zenith.map((x,j)=>x-c*s[j]),z=Math.hypot(...proj)>1e-10?unit(proj):north;
- return {sun:s,zenith,sza:sz,orbitalPhaseDeg:phi,period,limbZenithDeg:180-Math.asin(R/(R+H))/D,axes:[s,cross(z,s),z]};
+ const proj=zenith.map((x,j)=>x-c*s[j]),z=Math.hypot(...proj)>1e-10?unit(proj):unit(cross(s,node));
+ return {sun:s,zenith,sza:sz,orbitalPhaseDeg:phi,period,inclinationDeg,raanDeg:raan,ltanHours:LTAN_HOURS[orbit],
+   limbZenithDeg:180-Math.asin(R/(R+H))/D,axes:[s,cross(z,s),z]};
 }
 export function referenceDirection(v,state){return state.axes.map(a=>a.reduce((s,x,j)=>s+x*v[j],0));}
 export function visibility(v,state,r,moon){
@@ -98,6 +129,7 @@ export function geometry(H,sza,v,top){
   return {occulted,hmin,start:Math.max(-b-root,0),end:disc>=0?Math.max(-b+root,0):0,p:[rr*c,0,rr*s]};
 }
 export function bracket(axis,x){let lo=0,hi=axis.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(axis[m]<=x)lo=m;else hi=m;}return lo;}
+// Earth shadow: cylinder of radius R (x<0); no penumbra, atmospheric shadow height or oblateness (see airglow_orbit.py).
 export function integrateRay(H,sza,v,q,info,step=2){
   const z=info.altitude_km,chi=info.chi_deg,nz=z.length,g=geometry(H,sza,v,z.at(-1));
   if(g.occulted)return {flux:NaN,lit:NaN,valid:false,cutoff:false,hmin:0,earth:true};
@@ -144,13 +176,13 @@ export function fitsMap(result,request,manifest){
   const rows=[['XTENSION','BINTABLE'],['BITPIX',8],['NAXIS',2],['NAXIS1',names.length*4],['NAXIS2',n],['PCOUNT',0],['GCOUNT',1],['TFIELDS',names.length],['PIXTYPE','HEALPIX'],['ORDERING','RING'],['NSIDE',request.nside],['FIRSTPIX',0],['LASTPIX',n-1],['INDXSCHM','IMPLICIT'],['COORDSYS',request.coords==='galactic'?'G':'C'],['BAND',request.band],['WEBVER',2],['CREATOR','S-DRIFT HTML'],['DATATYPE',request.kind.toUpperCase()],['BANDMIN',manifest.bands[request.band][0]/1000],['BANDMAX',manifest.bands[request.band][1]/1000],['PHOTCNT',true]];
   names.forEach((name,i)=>{rows.push(['TTYPE'+(i+1),name],['TFORM'+(i+1),'1E']);});
   rows.push(['TUNIT1','mag/arcsec2'],['TUNIT2',air&&!total?'photons/s/cm2/sr':'MJy/sr']);
-  if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['TUNIT10','deg'],['ELVMIN',request.minElvDeg??20],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],['DATE-UTC',request.utc.replace('Z','')],['ORBIT',request.orbit],['ORBMODEL','IDEAL SOLAR CIRCLE'],['PHASE',result.state.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V1'],['PHASE0',request.orbitalPhaseDeg],['PHMODE',request.evolve?'EPOCH':'MANUAL'],['EPOCH',request.epoch],['PERIOD',result.state.period],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','GEOCENTRIC']);
+  if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['TUNIT10','deg'],['ELVMIN',request.minElvDeg??20],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],['DATE-UTC',request.utc],['ORBIT',request.orbit],['ORBMODEL','SSO J2 CIRCULAR'],['INCL',result.state.inclinationDeg],['RAAN',result.state.raanDeg],['LTAN',result.state.ltanHours],['PHASE',result.state.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V2'],['PHASE0',request.orbitalPhaseDeg],['PHMODE',request.evolve?'EPOCH':'MANUAL'],...(request.evolve?[['EPOCH',request.epoch]]:[]),['PERIOD',result.state.period],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','SATELLITE']);
     for(const [v,prefix]of [[result.sun,'SUN'],[result.moon,'MOON'],[result.state.zenith,'ZEN']])if(v)rows.push([prefix+'RA',mod(Math.atan2(v[1],v[0])/D,360)],[prefix+'DEC',Math.asin(clamp(v[2],-1,1))/D]);
   }
   else{
-    rows.push(['DATE-UTC',request.utc.replace('Z','')],['ANTISUN',request.anti],['ELONGMIN',request.elongation]);
+    rows.push(['DATE-UTC',request.utc],['ANTISUN',request.anti],['ELONGMIN',request.elongation]);
     if(result.sun)rows.push(['SUNRA',mod(Math.atan2(result.sun[1],result.sun[0])/D,360)],['SUNDEC',Math.asin(result.sun[2])/D]);
-    if(result.moon)rows.push(['MOONMASK',!!request.moonAvoid],['MOONMIN',request.moonAngle??60],['MOONRA',mod(Math.atan2(result.moon[1],result.moon[0])/D,360)],['MOONDEC',Math.asin(result.moon[2])/D],['MOONOBS','GEOCENTRIC']);
+    if(result.moon)rows.push(['MOONMASK',!!request.moonAvoid],['MOONMIN',request.moonAngle??60],['MOONRA',mod(Math.atan2(result.moon[1],result.moon[0])/D,360)],['MOONDEC',Math.asin(result.moon[2])/D],['MOONOBS',result.state?'SATELLITE':'GEOCENTRIC']);
     if(hasZodi)rows.push(['REF-UTC',manifest.solar.reference_utc],['ROT-DEG',result.delta/D],['SRC_SHA',manifest.zodiacal[request.band].source_sha256]);
     if(hasDgl){const m=manifest.dgl;rows.push(['CORRMOD','C2022_all'],['CORRSCL',m.metadata.scale],['CORRMIN',m.metadata.correlation_min_nm],['UVEXT','CONSTANT'],['BETAOP','MULTIPLY'],['ALPHAPP',m.metadata.alpha_approximation],['BETAREF',m.metadata.beta_reference],['DGLFIXED',true],['DGL_SHA',m.bands[request.band].source_sha256]);}
     if(request.kind==='zodiacal_dgl')rows.push(['TUNIT3','MJy/sr'],['TUNIT4','MJy/sr']);
@@ -164,8 +196,8 @@ export function fitsMap(result,request,manifest){
   }
   if(!air&&result.state){
     const s=result.state,v=s.zenith;
-    rows.push(['ORBIT',request.orbit],['ORBMODEL','IDEAL SOLAR CIRCLE'],['SAT_H',request.height],['SAT_SZA',s.sza],
-      ['PHASE',s.orbitalPhaseDeg],['PHASE0',request.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V1'],
+    rows.push(['ORBIT',request.orbit],['ORBMODEL','SSO J2 CIRCULAR'],['SAT_H',request.height],['INCL',s.inclinationDeg],['RAAN',s.raanDeg],['LTAN',s.ltanHours],['SAT_SZA',s.sza],
+      ['PHASE',s.orbitalPhaseDeg],['PHASE0',request.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V2'],
       ['PHMODE',request.evolve?'EPOCH':'MANUAL'],['PERIOD',s.period],['ELVMIN',request.minElvDeg??20],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],
       ['ZENRA',mod(Math.atan2(v[1],v[0])/D,360)],['ZENDEC',Math.asin(clamp(v[2],-1,1))/D]);
     if(request.evolve)rows.push(['EPOCH',request.epoch]);

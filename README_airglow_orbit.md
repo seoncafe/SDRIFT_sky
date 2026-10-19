@@ -1,130 +1,179 @@
-# 날짜와 궤도를 사용하는 airglow 지도
+# Date- and orbit-dependent airglow maps
 
-TLE가 없는 초기 설계 단계에서 두 원형 궤도를 비교합니다. Python과 웹 모두
-`docs/data/`의 동일한 평균 발광률 표와 태양·달 위치 자료를 사용하며, 원본 GLOW나
-PALACE를 설치할 필요가 없습니다. 출력 좌표는 기존 zodiacal/DGL 지도와 같은
-지구 중심 GCRS 축의 RA, DEC입니다. 고도 기본값은 650 km, NSIDE는 128입니다.
+For the early design phase without a TLE, two circular sun-synchronous orbits
+are compared. Python and the web page use the same mean emission tables and
+Sun/Moon position data in `docs/data/`; GLOW or PALACE do not need to be
+installed. Output coordinates are RA, DEC in geocentric GCRS axes, as for the
+zodiacal/DGL maps. The default height is 650 km and the default NSIDE is 128.
 
-공통 Python API·CLI·GUI 사용법은 [Python 인터페이스 안내서](README_python_interface.md)를
-참조하십시오. `SkyModel`과 호환 이름 `AirglowOrbitModel`은 같은 클래스입니다.
+For the common Python API, CLI, and GUI, see the
+[Python interface guide](README_python_interface.md). `SkyModel` and the
+compatibility name `AirglowOrbitModel` are the same class.
 
-## 실행
+## Running
 
 ```sh
 python3 -m pip install -r requirements-python.txt
-# 선택: 현재 Python/NumPy와 호환되는 Numba를 설치하면 병렬 적분 사용
+# Optional: a Numba compatible with the installed Python/NumPy enables parallel integration
 python3 -m pip install numba
 python3 airglow_orbit.py --gui
 ```
 
-`python3 airglow_orbit_gui.py`도 같은 창을 엽니다. 원본 계산 코드를 포함한 개발 폴더에서는
-`python3 airglow_gui.py`도 새 뷰어를 엽니다. 그 폴더의 이전 H/SZA 기준 뷰어는
-`python3 airglow_gui.py --reference`로 실행합니다. GitHub 배포에는 새 뷰어만 포함합니다.
-GUI는 현재 UTC와 Zodiacal + DGL + Airglow 합산 모드로 시작합니다. Orbit, UTC, H, 북쪽 기준 위상 φ, band, 최소 ELV를 선택하고
-Calculate map을 누릅니다. contour는 0.1-1.0 mag, 기본 0.2 mag입니다.
-Tkinter와 그래픽 데스크톱이 필요합니다. `python3 -m tkinter`로 확인하고,
-Tkinter가 없다면 Python 배포판에 맞는 Tcl/Tk 패키지를 설치합니다.
-macOS Homebrew Python에서는 해당 Python 버전의 `python-tk@3.x`를 사용합니다.
-`tkinter`를 pip로 설치하지 않습니다.
+`python3 airglow_orbit_gui.py` opens the same window. In the development folder,
+which also contains the source calculation code, `python3 airglow_gui.py` opens
+this viewer too, and `python3 airglow_gui.py --reference` starts the earlier
+fixed-H/SZA reference viewer. The GitHub release contains only the new viewer.
+The GUI starts at the current UTC in the Zodiacal + DGL + Airglow mode. Choose
+the orbit, UTC, H, phase φ from the northernmost point, band, and minimum ELV,
+then press Calculate map. Contours range from 0.1 to 1.0 mag; the default is
+0.2 mag. Tkinter and a graphical desktop are required. Check with
+`python3 -m tkinter`; if Tkinter is missing, install the Tcl/Tk package matching
+your Python distribution. With Homebrew Python on macOS, use the `python-tk@3.x`
+matching that Python version. Do not install `tkinter` with pip.
 
-웹은 `docs/index.html`에서 모델을 **Airglow**로 선택합니다.
+On the web, select the **Airglow** model in `docs/index.html`.
 
 ```sh
 python3 -m http.server 8765 --directory docs
 ```
 
-http://localhost:8765/ 로 접속합니다. 기존 GitHub Pages에서도 같은 UI를 사용합니다.
-Web Worker에서 시선을 적분하며 계산을 중지할 수 있습니다. Python은 Numba가 있으면
-병렬 적분하고, 없으면 NumPy로 실행합니다. `--engine numpy`로 선택할 수도 있습니다.
+Open http://localhost:8765/. GitHub Pages serves the same interface. The lines
+of sight are integrated in a Web Worker, and the calculation can be stopped.
+Python integrates in parallel when Numba is available and uses NumPy otherwise;
+`--engine numpy` selects NumPy explicitly.
 
-## 천정각, 태양·달 회피
+## Zenith angle, Sun and Moon avoidance
 
-천정각 θ는 위성의 지구 중심 반대 방향(천정)에서 잽니다.
-0°는 천정, 90°는 수평, 180°는 지구 중심 방향입니다.
-천정각은 포인터와 FITS의 참고 정보로 표시하며 최소·최대 천정각 입력과 필터는
-사용하지 않습니다. 모든 시선에서 최소 ELV, 태양·달 회피, 지구 차폐 조건으로
-관측 영역을 정합니다. 지구에 가리지 않는 하향 시선은 위성보다 낮은 대기를
-통과하는 경로도 적분합니다.
+The zenith angle θ is measured from the satellite zenith (the direction away
+from Earth's center): 0° is the zenith, 90° horizontal, 180° toward Earth's
+center. The zenith angle is shown in the pointer readout and stored in the FITS
+file for reference; there are no minimum/maximum zenith-angle inputs or filters.
+The observable region of every line of sight is set by the minimum ELV, Sun and
+Moon avoidance, and Earth occultation. Downward lines of sight not blocked by
+Earth also integrate the atmosphere below the satellite.
 
-**기본 관측 조건은 Sun separation >= 90°, Moon separation >= 60°, ELV >= 20°입니다.**
-ELV(Earth limb elevation)는 구형 지구 표면의 가장자리보다 시선이 얼마나
-위에 있는지를 나타내는 각도입니다. 고도 H와 천정각 θ에 대해
-`ELV = 180° - asin(R/(R+H)) - θ`이며 R=6371 km입니다.
-고도 650 km에서는 약 `ELV = 114.85° - θ`입니다.
-GUI/웹의 **최소 ELV**를 조절하며 CLI는 `--min-elv 10`, Python API는
-`min_elv_deg=10`처럼 지정합니다. 기본값은 20.0°이고 -90~180° 범위에서
-입력합니다. 태양·달 회피 조건과 동시에 적용합니다.
-음수를 지정해도 지구에 가려진 방향의 밝기는 계산하지 않습니다.
-ELV >= 0°가 모델의 모든 대기층을 피한다는 뜻은 아닙니다.
-최소 ELV 경계는 녹색 점선이며 포인터에 ELV와 천정각을 표시합니다.
+**The default observing conditions are Sun separation ≥ 90°, Moon separation
+≥ 60°, and ELV ≥ 20°.** ELV (Earth limb elevation) is the angle of the line of
+sight above the limb of the spherical Earth. For height H and zenith angle θ,
+`ELV = 180° − asin(R/(R+H)) − θ` with R = 6371 km. At 650 km,
+`ELV ≈ 114.85° − θ`. Set the **minimum ELV** in the GUI/web, with
+`--min-elv 10` in the CLI, or `min_elv_deg=10` in the Python API. The default
+is 20.0°, and the allowed range is −90° to 180°. It is applied together with
+Sun and Moon avoidance. Even with a negative value, directions blocked by Earth
+are not computed. ELV ≥ 0° does not mean that the line of sight avoids every
+atmospheric layer of the model. The minimum ELV boundary is a green dashed line,
+and the pointer readout shows ELV and the zenith angle.
 
-Python과 웹 모두 태양·달을 표시하고 태양 경계는 빨간 점선, 달 경계는 주황 점선으로
-그립니다. 회피각은 변경하거나 해제할 수 있습니다. 천정 위치는 파란색입니다.
-회피·ELV 조건 밖은 밝은 무채색, 지구 차폐는 회색, 모델 범위 밖/광전자
-cutoff는 빗금입니다. 빗금 영역의 밝기는 부분적인 계산 결과입니다.
+Python and the web show the Sun and the Moon; the Sun boundary is a red dashed
+line and the Moon boundary an orange dashed line. The avoidance angles can be
+changed or turned off. The zenith is shown in blue. Directions outside the
+avoidance/ELV conditions are pale gray, Earth occultation is gray, and outside
+the model range or beyond the photoelectron cutoff is hatched. Hatched
+brightness is a partial result.
 
-## 날짜만으로 정해지지 않는 궤도상 위치
+The Moon direction is the one seen from the satellite (parallax up to about
+1.1° in LEO), so Moon avoidance and the Moon marker use that direction. The Sun
+direction is geocentric (parallax from LEO < 0.003°).
 
-태양 단위벡터 s, 북극축 k로부터
-`a = normalize(k - (k·s)s)`, `b = s × a`를 정의합니다.
-선택한 날짜의 태양 방향을 사용하므로 춘분점에 고정된 지도가 아닙니다.
+## Orbit model
 
-두 궤도 모두 **북쪽 기준 궤도 위상 φ**를 사용합니다. φ=0°는 북극축을
-궤도면에 투영한 북쪽, φ=180°는 남쪽입니다. 지리적 북극 상공을 뜻하지 않습니다.
+Both orbits are circular, with radius R + H (R = 6371 km, spherical Earth), and
+include only the J2 secular rates.
 
-- Dawn-dusk: `r = (R+H)(cos(φ) a + sin(φ) b)`. 궤도면은 태양에 수직이고
-  위성 SZA는 항상 90°입니다. φ=90°는 `b = s × a` 방향입니다.
-- Noon-midnight: `r = (R+H)(cos(φ) a - sin(φ) s)`. 태양 방향을 포함하는
-  궤도면입니다. φ=90°는 자정, φ=270°는 정오입니다.
+- **Inclination.** From the J2 sun-synchronous condition
+  `dΩ/dt = −1.5 n J2 (R_eq/a)² cos i = 360° per tropical year`
+  (J2 = 1.08262668e-3, R_eq = 6378.137 km, μ = 398600.4418 km³/s²).
+  At H = 650 km, i = 97.96°.
+- **Node.** The ascending node is at a fixed local time in **mean** solar time:
+  LTAN 18:00 for dawn-dusk and 12:00 for noon-midnight, so
+  `RAAN = mean-Sun RA (of date) + 15° × (LTAN − 12 h)`. The plane follows the
+  mean Sun; the true Sun differs by the equation of time and by its
+  declination.
+- **Pole.** Earth's pole is the mean pole of date (IAU 1976 precession; agrees
+  with ERFA to < 0.3 arcsec over 1900–2100). Nutation (< 0.005°) and the frame
+  bias are neglected.
 
-이는 φ가 증가할 때 북쪽 → 자정 → 남쪽 → 정오로 이동한다는 정의이며,
-이전 코드의 진행 방향을 유지합니다. 이전 noon-midnight의 u와는
-`φ = (u - 90°) mod 360°` 관계이고, dawn-dusk에서는 이전 u와 같습니다.
-**위상 기본값은 두 궤도 모두 북쪽인 0°**입니다. Noon-midnight의 야간 중심은
-φ=90°를 선택합니다. 정오인 φ=270°에서는 태양 회피와 ELV 하한에 따라 관측 영역이 제한됩니다.
+Because the plane is inclined and follows the mean Sun, **the satellite SZA
+varies around the orbit**. Dawn-dusk at 650 km: about 82–98° at the equinoxes,
+74.5–105.5° at the December solstice, and 58.6–121.4° at the June solstice.
+Near the June solstice the satellite therefore enters Earth's shadow (SZA
+> 114.85° at 650 km). Noon-midnight SZA spans about 2–178°. The current SZA is
+shown in the map title and stored as `SAT_SZA`.
 
-기본적으로 선택한 위상은 날짜를 바꿔도 유지합니다. 위성의 위치를 시간에 따라
-이동시키려면 웹/GUI의 **기준 UTC부터 위상 자동 진행**을 선택하거나 CLI에
-`--epoch`를 추가합니다. 기준 UTC의 위상이 입력한 `--orbital-phase-deg`이고,
-`φ(t) = φ0 + sqrt(mu/(R+H)^3) (t-t0)`로 진행합니다(수식의 각도는 radian).
-Python API 변수는 `orbital_phase_deg`이며 단위는 degree입니다. 기존 `--phase`와
-API의 `phase=`도 별칭으로 받을 수 있지만 **새 북쪽 기준 정의로 해석**합니다.
-이전 noon-midnight 값을 재현하려면 90°를 빼십시오. 기존 파일은 수정하지 않습니다.
-R=6371 km, mu=398600.4418 km³/s²이며 H=650 km의 주기는 약 97.58분입니다.
-기준 UTC 기본 예시 2026-10-17 00:00:00은 임의의 설계 기준입니다.
-자동 진행 모드의 날짜 변경은 태양 방향, 달 방향, 궤도 위상에 모두 반영됩니다.
+Earth's shadow (used for the night layers and for the sunlit part of each path)
+is a cylinder of radius R behind Earth. This is a deliberate approximation: no
+penumbra (about 60 km wide at LEO distances), no atmospheric extension of the
+shadow (tens of km), and no oblateness.
 
-이 모델은 매 날짜 태양 방향을 따르는 **이상적인 기하 비교 모델**입니다.
-고정 궤도경사각, 실제 LTAN, J2 섭동, SGP4/TLE 전파를 적용하지 않습니다.
-실제 태양동기궤도와 두 이상적 평면이 정확히 같다는 뜻은 아닙니다.
-궤도와 위상 convention에 대한 참고:
-[NASA 궤도 개요](https://science.nasa.gov/earth/earth-observatory/catalog-of-earth-satellite-orbits/),
-[Astropy 실제 위성 좌표/TLE 처리](https://docs.astropy.org/en/stable/coordinates/satellites.html).
+## Orbital phase φ (convention NORTH_V2)
 
-## CLI와 Python API
+The position on the orbit is not determined by the date alone, so it is set by
+the phase φ, measured from the northernmost point of the orbit and advancing in
+the direction of motion.
+
+| φ | Dawn-dusk | Noon-midnight |
+|---|---|---|
+| 0° | northernmost point | northernmost point |
+| 90° | descending node, dawn side | descending node, midnight side |
+| 180° | southernmost point | southernmost point |
+| 270° | ascending node, dusk side | ascending node, noon side |
+
+The northernmost point is the maximum-declination point of the orbit (about 82°
+for i = 97.96°), not a position above the geographic pole. If an older
+noon-midnight phase u was measured from noon, φ = (u − 90°) mod 360°.
+**The default phase is 0° (northernmost) for both orbits.** For the center of
+the noon-midnight night side choose φ = 90°. At noon (φ = 270°) the observable
+region is limited by Sun avoidance and the ELV limit.
+
+By default the selected phase is kept when the date changes; the orbit plane,
+the Sun, and the Moon still move with the date. To move the satellite with time,
+select **evolve phase from the reference UTC** in the web page / **Evolve phase
+from epoch** in the GUI, or add `--epoch` in the CLI. The phase at the reference
+UTC is the given `--orbital-phase-deg`, and it advances at the J2 secular
+argument-of-latitude rate
+
+```text
+du/dt = n [1 + 0.75 J2 (R_eq/a)^2 (8 cos^2 i − 2)],   n = sqrt(mu / a^3)
+```
+
+(draconic period). At 650 km the period is 97.70 min (the Keplerian value is
+97.58 min). The Python API variable is `orbital_phase_deg`, in degrees. The
+older `--phase` and API `phase=` are accepted as aliases and are interpreted in
+the NORTH_V2 convention. Existing files are not modified. The default reference
+UTC 2026-10-17 00:00:00 in the examples is an arbitrary design reference. In
+epoch mode a date change moves the Sun, the Moon, the orbit plane, and the
+orbital phase.
+
+This is a design comparison model, not orbit propagation: there is no TLE/SGP4,
+drag, or higher-order gravity term. References for orbits and conventions:
+[NASA orbit overview](https://science.nasa.gov/earth/earth-observatory/catalog-of-earth-satellite-orbits/),
+[Astropy satellite coordinates / TLE handling](https://docs.astropy.org/en/stable/coordinates/satellites.html).
+
+## CLI and Python API
 
 ```sh
-# Dawn-dusk, 선택 UTC의 북쪽 위상, 기본 ELV 및 태양·달 회피
+# Dawn-dusk, northernmost point at the selected UTC, default ELV and Sun/Moon avoidance
 python3 airglow_orbit.py --model airglow --date 2026-10-17T00:00:00Z \
   --orbit dawn-dusk --height 650 --orbital-phase-deg 0 --band VIS --nside 128 \
   --fits airglow_VIS_nside128_20261017_dawn-dusk.fits.gz \
   --png airglow_VIS_nside128_20261017_dawn-dusk.png
 
-# Noon-midnight 자정; PDF 또는 --show로 화면 표시 가능
+# Noon-midnight, midnight side; save a PDF or use --show for a window
 python3 airglow_orbit.py --model airglow --date 2026-10-17T00:00:00Z \
   --orbit noon-midnight --orbital-phase-deg 90 --height 650 --band UV3 \
   --pdf airglow_UV3_nside128_20261017_noon-midnight.pdf
 
-# 기준 위상부터 시간 진행, 단일 RA/DEC 질의
+# Phase evolved from the epoch, single RA/DEC query
 python3 airglow_orbit.py --model airglow --date 2026-10-17T00:10:00Z \
   --epoch 2026-10-17T00:00:00Z --orbital-phase-deg 90 --orbit noon-midnight \
   --ra 30 --dec 10 --band VIS
 ```
 
-`--sun-separation 100 --moon-separation 70`으로 회피각을 바꿉니다.
-`--no-sun-avoidance`, `--no-moon-avoidance`로 각각 해제합니다.
-단일 좌표 질의도 관측 조건을 적용합니다. 제외 방향은 mag/flux가 NaN이며,
-`view_allowed`, `earth_occulted`, `model_valid`, 천정각과 separation을 함께 반환합니다.
+`--sun-separation 100 --moon-separation 70` changes the avoidance angles;
+`--no-sun-avoidance` and `--no-moon-avoidance` turn them off. Single-direction
+queries apply the same conditions. Excluded directions return NaN brightness,
+together with `view_allowed`, `earth_occulted`, `model_valid`, the zenith
+angle, and the separations.
 
 ```python
 from airglow_orbit import AirglowOrbitModel
@@ -136,35 +185,52 @@ fig.savefig('map.pdf')
 sky.save_fits(r, 'map.fits.gz')
 ```
 
-출력 FITS.gz는 RING/적도 HEALPix이며 AB_MAG_ARCSEC2, PHOTON_RADIANCE,
-SUNLIT_RADIANCE, EARTH_OCCULTED, MODEL_VALID, MIN_ALTITUDE, PHOTO_CUTOFF,
-ZENITH_ANGLE, VIEW_ALLOWED, ELV(deg)를 저장합니다. 제외 영역의 밝기는 NaN입니다.
-VIEW_ALLOWED는 최소 ELV·태양·달 회피를 판정하고, 지구 차폐와 모델 유효성은
-별도 열을 봅니다. 제외 방향은 적분을 생략하므로 다른 진단 열은 유효하지 않습니다.
-UTC, 궤도 종류, 위상/기준 UTC, 고도, 위성 SZA, 회피각, 최소 ELV(ELVMIN),
-태양·달·천정의 RA/DEC, 발광률 표 SHA-256 등을 헤더에 기록합니다.
-위상 기준은 `PHREF=NORTH`, 정의 버전은 `PHCONV=NORTH_V1`로 명시합니다.
-파일명에서는 궤도 위상을 `_phi...`로 표시합니다.
+The Python FITS.gz file is a RING HEALPix table in the selected coordinate
+system (`COORDSYS=C` for equatorial, `G` with `--coords galactic`). It uses the
+fixed 14-column API v2 layout in every mode: AB_MAG_ARCSEC2, INTENSITY_MJY_SR,
+ZODIACAL_MJY_SR, DGL_MJY_SR, AIRGLOW_MJY_SR, AIRGLOW_PHOTON_RADIANCE,
+EARTH_OCCULTED, MODEL_VALID, MIN_ALTITUDE, ZENITH_ANGLE, VIEW_ALLOWED,
+ELV (deg), VISIBLE, VALID (details in the
+[Python interface guide](README_python_interface.md#92-save_fitsresult-filename)).
+Brightness is NaN in excluded regions. VIEW_ALLOWED checks the minimum ELV and
+Sun/Moon avoidance; Earth occultation and model validity are separate columns.
+Excluded directions are not integrated, so their other diagnostic columns are
+not meaningful.
 
-## 발광 모델의 범위
+The header records the UTC (`DATE-UTC`), orbit (`ORBIT`,
+`ORBMODEL='SSO J2 CIRCULAR'`, `INCL`, `RAAN` in the mean equinox of date,
+`LTAN` in hours), phase (`PHASE`, `PHASE0`, `PHREF=NORTH`, `PHCONV=NORTH_V2`,
+`PHMODE`), the draconic `PERIOD` in seconds, height, satellite SZA, avoidance
+angles, minimum ELV (`ELVMIN`), the RA/DEC of the Sun, Moon, and zenith, the
+SHA-256 of the emission table, and `MOONOBS=SATELLITE`. `EPOCH` is written only
+in epoch mode (`PHMODE='EPOCH'`). File names written by the GUI and the web page
+mark the orbital phase with `_phi...`.
 
-UV1=200-400, UV2=250-400, UV3=300-400, VIS=400-700 nm이며 constant
-photon-counting throughput입니다. 고도와 **각 적분점의 국소 SZA**에서 발광률을
-내삽하고, 지구 그림자를 적분점마다 판정하여 2 km 간격의 midpoint 적분을 합니다.
-위성 SZA가 90°여도 시선상의 대기 SZA가 모두 90°라는 뜻은 아닙니다.
-광자 radiance에서 band 평균 f_nu를 계산하여 AB mag/arcsec²로 변환합니다.
+The web page saves a different, model-dependent column layout (for airglow it
+includes PHOTON_RADIANCE, SUNLIT_RADIANCE, and PHOTO_CUTOFF); see
+[README_web.md](README_web.md).
 
-날짜는 기하학적 위치에 적용되고, 발광률은 기존 F10.7=100, Ap=4 등의 평균 표를
-유지합니다. 기존 표의 누락 성분, UV 흡수 미포함, dawn/dusk 화학 이력 미포함,
-PALACE 야간층의 전 지구 적용 가정도 유지됩니다. 달 위치는 기존 웹과 같은
-지구 중심 위치이며 위성 시차와 산란 달빛은 포함하지 않습니다. GLOW 사용 조건은
-`docs/data/glowlicense.txt`를 참조하십시오.
+## Scope of the emission model
 
-## Zodiacal light + DGL + Airglow 합산
+UV1 = 200–400, UV2 = 250–400, UV3 = 300–400, VIS = 400–700 nm, with a constant
+photon-counting throughput. Emission rates are interpolated in altitude and in
+**the local SZA at each integration point**, Earth's shadow is tested at each
+point, and the midpoint integral uses 2 km steps. A given satellite SZA does not
+mean that the atmosphere along the line of sight has the same SZA. The band-mean
+f_nu is computed from the photon radiance and converted to AB mag/arcsec².
 
-웹 모델 목록에서 **Zodiacal light + DGL + Airglow**를 선택하면 Airglow와
-동일한 궤도·위상·고도·ELV 입력을 사용할 수 있습니다. Python GUI에서는
-Map을 **Zodiacal + DGL + Airglow**로 선택하거나 다음과 같이 합산 모드로 시작합니다.
+The date sets the geometry; the emission rates remain the mean tables for
+F10.7 = 100, Ap = 4, etc. The missing components of the tables, the absence of
+UV absorption and of dawn/dusk chemistry history, and the global application of
+the PALACE night layers still apply. The Moon direction includes the satellite
+parallax; scattered moonlight is not included. For the GLOW terms of use, see
+`docs/data/glowlicense.txt`.
+
+## Zodiacal light + DGL + Airglow sum
+
+Selecting **Zodiacal light + DGL + Airglow** in the web model list uses the same
+orbit, phase, height, and ELV inputs as Airglow. In the Python GUI, choose
+**Zodiacal + DGL + Airglow** under Map, or start in the summed mode:
 
 ```sh
 python3 airglow_orbit.py --gui --model total
@@ -174,31 +240,35 @@ python3 airglow_orbit.py --model total --orbit noon-midnight \
   --png total_VIS_nside128_20261017.png
 ```
 
-API에서도 `sky.sky_map(..., model='total')`로 선택합니다. 기본값은 `model='total'`로 세 성분을 합산합니다.
-Airglow 단독은 `model='airglow'` 또는 CLI의 `--model airglow`로 선택합니다. `--airglow-model combined/glow`는 합산 여부와 별개로
-Airglow의 발광 성분 모델을 선택합니다.
+In the API use `sky.sky_map(..., model='total')`; `model='total'` is the default
+and sums all three components. Airglow alone is `model='airglow'` or
+`--model airglow` in the CLI. `--airglow-model combined/glow` selects the
+airglow emission set independently of the summing mode.
 
-세 성분은 같은 band의 **MJy/sr로 통일하여 합한 뒤** AB mag/arcsec²로 변환합니다.
-광자 radiance I_gamma의 변환은
-`I_airglow[MJy/sr] = 6.62607015e-10 * I_gamma / ln(lambda_max/lambda_min)`이며
-constant photon-counting throughput 가정과 기존 Airglow AB 정의를 사용합니다.
-등급 자체를 더하지 않습니다. Zodiacal은 날짜에 따라 회전하고 DGL은 RA/DEC에
-고정되며, Airglow는 선택한 궤도의 시선을 따라 적분합니다.
+The three components are **summed in MJy/sr in the same band** and then
+converted to AB mag/arcsec². The photon radiance I_gamma is converted with
+`I_airglow[MJy/sr] = 6.62607015e-10 * I_gamma / ln(lambda_max/lambda_min)`,
+under the constant photon-counting throughput and the airglow AB definition.
+Magnitudes are never added. The zodiacal light varies with the date (annual
+harmonic templates of the SKYSURF model, combined at the Sun's J2000 ecliptic
+longitude and rotated with the Sun), the DGL is fixed in RA/DEC, and the airglow
+is integrated along the lines of sight of the selected orbit.
 
-세 성분 모두 동일한 Sun/Moon avoidance, 최소 ELV, 지구 차폐를 적용합니다.
-Airglow 모델이 불완전한 방향은 합산 지도에도 빗금으로 표시합니다.
-총합 FITS의 두 번째 열은 `INTENSITY_MJY_SR`이고 별도로
-`ZODIACAL_MJY_SR`, `DGL_MJY_SR`, `AIRGLOW_MJY_SR`,
-`AIRGLOW_PHOTON_RADIANCE`를 저장합니다. 모델 유효성 등 기존 진단 열도 유지합니다.
-모든 모드의 API `flux` 단위는 MJy/sr로 통일합니다. Airglow 광자 단위는 photons/s/cm²/sr입니다.
-`airglow_photon_radiance`에 합산 전 Airglow 광자 radiance도 보관합니다.
+All three components use the same Sun/Moon avoidance, minimum ELV, and Earth
+occultation. Directions where the airglow model is incomplete are also hatched
+in the summed map. The FITS column INTENSITY_MJY_SR holds the total, and
+ZODIACAL_MJY_SR, DGL_MJY_SR, AIRGLOW_MJY_SR, and AIRGLOW_PHOTON_RADIANCE hold
+the components. The API `flux` is in MJy/sr in every mode. The airglow photon
+unit is photons/s/cm²/sr, and `airglow_photon_radiance` keeps the airglow photon
+radiance before summing.
 
-## 표시 좌표계: Equatorial / Galactic
+## Display coordinates: Equatorial / Galactic
 
-웹의 **좌표계**, Python GUI의 **Coordinates**에서 `equatorial` 또는
-`galactic`을 선택합니다. 기본은 적도 좌표 RA, DEC이며 은하 좌표에서는
-경도 l, 위도 b를 표시합니다. 태양·달·천정, ELV 및 회피 경계, contour도
-동일한 좌표계로 변환합니다. 웹에서는 다섯 모델 모두 지원합니다.
+Select `equatorial` or `galactic` with the web **coordinate system** control or
+the Python GUI **Coordinates** control. The default is equatorial RA, DEC; the
+Galactic map shows longitude l and latitude b. The Sun, Moon, zenith, ELV and
+avoidance boundaries, and contours are transformed to the same system. The web
+page supports this for all five models.
 
 ```sh
 python3 airglow_orbit.py --gui --coords galactic
@@ -207,29 +277,33 @@ python3 airglow_orbit.py --coords galactic --date 2026-10-17T00:00:00Z \
   --fits total_VIS_nside128_20261017_galactic.fits.gz --png total_galactic.png
 ```
 
-API: `sky.sky_map(date, coords='galactic', ...)`. `sdrift_sky.py`의
-Zodiacal/DGL CLI도 `--coords galactic`을 지원합니다. `--ra`, `--dec`로
-입력하는 표적과 `point()` 질의는 선택한 지도 좌표계와 무관하게 적도 좌표입니다.
+API: `sky.sky_map(date, coords='galactic', ...)`. The `sdrift_sky.py` CLI also
+supports `--coords galactic` in every mode. Targets given with `--ra`, `--dec`
+and `point()` queries are equatorial regardless of the map coordinate system.
 
-은하 좌표 픽셀 중심을 적도 좌표 시선으로 변환하여 같은 물리 모델을 평가합니다.
-따라서 FITS는 실제 선택 좌표계의 RING HEALPix이며 헤더 `COORDSYS`는
-적도 좌표에서 C, 은하 좌표에서 G입니다. 마스크와 각 성분도 같은 픽셀 격자입니다.
-프레임별 픽셀 중심이 달라 단순한 픽셀 순서 치환은 아닙니다.
+Galactic pixel centers are converted to equatorial lines of sight, and the same
+physical model is evaluated. The FITS file is therefore a RING HEALPix map in
+the selected system, with `COORDSYS` C (equatorial) or G (Galactic). Masks and
+components use the same pixel grid. Because the pixel centers differ between
+frames, this is not a simple reordering of pixels.
 
-변환은 [Astropy ICRS–Galactic 회전](https://docs.astropy.org/en/stable/coordinates/transforming.html)의
-고정 행렬을 Python·웹에 동일하게 적용합니다. 기존 지구 중심 태양·달 벡터의
-축을 회전하며 추가적인 시차나 광행차 보정은 적용하지 않습니다. API의 `sun`,
-`moon`, `state.zenith` 및 FITS의 SUNRA/SUNDEC 등 RA·DEC 메타데이터는
-기존 적도 축 기준을 유지합니다. GUI·웹의 위치와 포인터 표시는 선택한 좌표계입니다.
+The transformation uses the fixed matrix of the
+[Astropy ICRS–Galactic rotation](https://docs.astropy.org/en/stable/coordinates/transforming.html),
+identically in Python and on the web. It rotates the axes of the Sun and Moon
+vectors and adds no parallax or aberration correction. The API `sun`, `moon`,
+`state.zenith`, and RA/DEC metadata in the FITS header such as SUNRA/SUNDEC stay
+in equatorial axes. Positions and pointer readouts in the GUI and the web page
+use the selected system.
 
-## Zodiacal / DGL / Zodi+DGL의 궤도 관측 옵션
+## Orbit options for Zodiacal / DGL / Zodiacal + DGL
 
-웹과 Python 궤도 GUI의 **모든 모델**에서 궤도, 위성 고도, 북쪽 기준 위상,
-기준 UTC부터 위상 자동 진행, 최소 ELV, 태양·달 회피를 공통으로 설정합니다.
-기본값은 H=650 km, φ=0°, ELV >= 20°, Sun separation >= 90°, Moon >= 60°입니다.
-Zodiacal/DGL 밝기 자체는 기존 모델을 유지합니다. 궤도는 관측 가능 영역과
-천정·ELV 경계를 정하며, 이들 모드에서는 Airglow를 적분하거나 더하지 않습니다.
-Airglow 성분 선택은 Airglow / total 모드에서만 적용됩니다.
+On the web and in the Python orbit GUI, **every model** shares the orbit,
+satellite height, phase, phase evolution from the reference UTC, minimum ELV,
+and Sun/Moon avoidance settings. The defaults are H = 650 km, φ = 0°,
+ELV ≥ 20°, Sun separation ≥ 90°, and Moon separation ≥ 60°. The zodiacal and
+DGL brightness models are unchanged by the orbit; the orbit sets the observable
+region and the zenith/ELV boundaries, and these modes neither integrate nor add
+airglow. The airglow emission set applies only to the Airglow and total modes.
 
 ```sh
 python3 airglow_orbit.py --gui --model dgl
@@ -238,11 +312,10 @@ python3 airglow_orbit.py --model zodiacal_dgl --coords galactic \
   --date 2026-10-17T00:00:00Z --fits zodi_dgl_nside128_20261017_galactic.fits.gz
 ```
 
-`--model`은 `zodiacal`, `dgl`, `zodiacal_dgl`, `airglow`, `total`을 지원합니다.
-`AirglowOrbitModel().sky_map(date, model='dgl', orbit='dawn-dusk', ...)`로 API에서도
-사용할 수 있습니다. 배경광 모드의 FITS에는 기존 intensity 및 각 성분에 더해
-EARTH_OCCULTED, MODEL_VALID, MIN_ALTITUDE, ZENITH_ANGLE, VIEW_ALLOWED, ELV와
-궤도 메타데이터를 저장합니다. MODEL_VALID는 이 모드에서 지구 차폐 여부를
-나타내며 Airglow 모델 유효성이나 UV 성분 완전성을 판정하는 플래그가 아닙니다.
-`VIEW_ALLOWED`와 지구 차폐를 함께 확인하십시오. `SkyModel` 및 두 CLI 모두 같은
-궤도 옵션을 지원합니다. 제외 방향은 모든 모드에서 NaN으로 반환합니다.
+`--model` accepts `zodiacal`, `dgl`, `zodiacal_dgl`, `airglow`, and `total`.
+The API equivalent is
+`AirglowOrbitModel().sky_map(date, model='dgl', orbit='dawn-dusk', ...)`.
+In these modes MODEL_VALID only indicates that the direction is not
+Earth-occulted; it does not test airglow model validity or UV completeness.
+Check `VIEW_ALLOWED` together with Earth occultation. `SkyModel` and both CLIs
+support the same orbit options, and excluded directions are NaN in every mode.
