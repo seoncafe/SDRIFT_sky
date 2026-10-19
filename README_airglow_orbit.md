@@ -1,9 +1,12 @@
-# 날짜와 이상적 궤도를 사용하는 airglow 지도
+# 날짜와 궤도를 사용하는 airglow 지도
 
 TLE가 없는 초기 설계 단계에서 두 원형 궤도를 비교합니다. Python과 웹 모두
 `docs/data/`의 동일한 평균 발광률 표와 태양·달 위치 자료를 사용하며, 원본 GLOW나
 PALACE를 설치할 필요가 없습니다. 출력 좌표는 기존 zodiacal/DGL 지도와 같은
 지구 중심 GCRS 축의 RA, DEC입니다. 고도 기본값은 650 km, NSIDE는 128입니다.
+
+공통 Python API·CLI·GUI 사용법은 [Python 인터페이스 안내서](README_python_interface.md)를
+참조하십시오. `SkyModel`과 호환 이름 `AirglowOrbitModel`은 같은 클래스입니다.
 
 ## 실행
 
@@ -102,18 +105,18 @@ R=6371 km, mu=398600.4418 km³/s²이며 H=650 km의 주기는 약 97.58분입�
 
 ```sh
 # Dawn-dusk, 선택 UTC의 북쪽 위상, 기본 ELV 및 태양·달 회피
-python3 airglow_orbit.py --kind airglow --date 2026-10-17T00:00:00Z \
+python3 airglow_orbit.py --model airglow --date 2026-10-17T00:00:00Z \
   --orbit dawn-dusk --height 650 --orbital-phase-deg 0 --band VIS --nside 128 \
   --fits airglow_VIS_nside128_20261017_dawn-dusk.fits.gz \
   --png airglow_VIS_nside128_20261017_dawn-dusk.png
 
 # Noon-midnight 자정; PDF 또는 --show로 화면 표시 가능
-python3 airglow_orbit.py --kind airglow --date 2026-10-17T00:00:00Z \
+python3 airglow_orbit.py --model airglow --date 2026-10-17T00:00:00Z \
   --orbit noon-midnight --orbital-phase-deg 90 --height 650 --band UV3 \
   --pdf airglow_UV3_nside128_20261017_noon-midnight.pdf
 
 # 기준 위상부터 시간 진행, 단일 RA/DEC 질의
-python3 airglow_orbit.py --kind airglow --date 2026-10-17T00:10:00Z \
+python3 airglow_orbit.py --model airglow --date 2026-10-17T00:10:00Z \
   --epoch 2026-10-17T00:00:00Z --orbital-phase-deg 90 --orbit noon-midnight \
   --ra 30 --dec 10 --band VIS
 ```
@@ -126,7 +129,7 @@ python3 airglow_orbit.py --kind airglow --date 2026-10-17T00:10:00Z \
 ```python
 from airglow_orbit import AirglowOrbitModel
 sky = AirglowOrbitModel()
-r = sky.sky_map('2026-10-17T00:00:00Z', kind='airglow', orbit='noon-midnight',
+r = sky.sky_map('2026-10-17T00:00:00Z', model='airglow', orbit='noon-midnight',
                 orbital_phase_deg=90, height=650, band='VIS', nside=128, min_elv_deg=20)
 fig = sky.plot(r, contour_step=0.2)
 fig.savefig('map.pdf')
@@ -164,15 +167,15 @@ PALACE 야간층의 전 지구 적용 가정도 유지됩니다. 달 위치는 �
 Map을 **Zodiacal + DGL + Airglow**로 선택하거나 다음과 같이 합산 모드로 시작합니다.
 
 ```sh
-python3 airglow_orbit.py --gui --kind total
-python3 airglow_orbit.py --kind total --orbit noon-midnight \
+python3 airglow_orbit.py --gui --model total
+python3 airglow_orbit.py --model total --orbit noon-midnight \
   --orbital-phase-deg 90 --height 650 --date 2026-10-17T00:00:00Z \
   --band VIS --min-elv 5 --fits total_VIS_nside128_20261017.fits.gz \
   --png total_VIS_nside128_20261017.png
 ```
 
-API에서도 `sky.sky_map(..., kind='total')`로 선택합니다. 기본값은 `kind='total'`로 세 성분을 합산합니다.
-Airglow 단독은 `kind='airglow'` 또는 CLI의 `--kind airglow`로 선택합니다. `--model combined/glow`는 합산 여부와 별개로
+API에서도 `sky.sky_map(..., model='total')`로 선택합니다. 기본값은 `model='total'`로 세 성분을 합산합니다.
+Airglow 단독은 `model='airglow'` 또는 CLI의 `--model airglow`로 선택합니다. `--airglow-model combined/glow`는 합산 여부와 별개로
 Airglow의 발광 성분 모델을 선택합니다.
 
 세 성분은 같은 band의 **MJy/sr로 통일하여 합한 뒤** AB mag/arcsec²로 변환합니다.
@@ -187,7 +190,7 @@ Airglow 모델이 불완전한 방향은 합산 지도에도 빗금으로 표시
 총합 FITS의 두 번째 열은 `INTENSITY_MJY_SR`이고 별도로
 `ZODIACAL_MJY_SR`, `DGL_MJY_SR`, `AIRGLOW_MJY_SR`,
 `AIRGLOW_PHOTON_RADIANCE`를 저장합니다. 모델 유효성 등 기존 진단 열도 유지합니다.
-총합 결과의 API `flux` 단위는 MJy/sr이고 Airglow 단독의 `flux`는 photons/s/cm²/sr입니다.
+모든 모드의 API `flux` 단위는 MJy/sr로 통일합니다. Airglow 광자 단위는 photons/s/cm²/sr입니다.
 `airglow_photon_radiance`에 합산 전 Airglow 광자 radiance도 보관합니다.
 
 ## 표시 좌표계: Equatorial / Galactic
@@ -200,7 +203,7 @@ Airglow 모델이 불완전한 방향은 합산 지도에도 빗금으로 표시
 ```sh
 python3 airglow_orbit.py --gui --coords galactic
 python3 airglow_orbit.py --coords galactic --date 2026-10-17T00:00:00Z \
-  --orbit noon-midnight --orbital-phase-deg 90 --kind total \
+  --orbit noon-midnight --orbital-phase-deg 90 --model total \
   --fits total_VIS_nside128_20261017_galactic.fits.gz --png total_galactic.png
 ```
 
@@ -229,17 +232,17 @@ Zodiacal/DGL 밝기 자체는 기존 모델을 유지합니다. 궤도는 관측
 Airglow 성분 선택은 Airglow / total 모드에서만 적용됩니다.
 
 ```sh
-python3 airglow_orbit.py --gui --kind dgl
-python3 airglow_orbit.py --kind zodiacal_dgl --coords galactic \
+python3 airglow_orbit.py --gui --model dgl
+python3 airglow_orbit.py --model zodiacal_dgl --coords galactic \
   --orbit noon-midnight --orbital-phase-deg 90 --height 650 --min-elv 20 \
   --date 2026-10-17T00:00:00Z --fits zodi_dgl_nside128_20261017_galactic.fits.gz
 ```
 
-`--kind`는 `zodiacal`, `dgl`, `zodiacal_dgl`, `airglow`, `total`을 지원합니다.
-`AirglowOrbitModel().sky_map(date, kind='dgl', orbit='dawn-dusk', ...)`로 API에서도
+`--model`은 `zodiacal`, `dgl`, `zodiacal_dgl`, `airglow`, `total`을 지원합니다.
+`AirglowOrbitModel().sky_map(date, model='dgl', orbit='dawn-dusk', ...)`로 API에서도
 사용할 수 있습니다. 배경광 모드의 FITS에는 기존 intensity 및 각 성분에 더해
 EARTH_OCCULTED, MODEL_VALID, MIN_ALTITUDE, ZENITH_ANGLE, VIEW_ALLOWED, ELV와
 궤도 메타데이터를 저장합니다. MODEL_VALID는 이 모드에서 지구 차폐 여부를
 나타내며 Airglow 모델 유효성이나 UV 성분 완전성을 판정하는 플래그가 아닙니다.
-`VIEW_ALLOWED`와 지구 차폐를 함께 확인하십시오. 기존 궤도 없는 SkyModel 및
-`sdrift_sky.py`는 그대로 사용할 수 있고, 궤도 옵션은 위 통합 뷰어/CLI로 실행합니다.
+`VIEW_ALLOWED`와 지구 차폐를 함께 확인하십시오. `SkyModel` 및 두 CLI 모두 같은
+궤도 옵션을 지원합니다. 제외 방향은 모든 모드에서 NaN으로 반환합니다.

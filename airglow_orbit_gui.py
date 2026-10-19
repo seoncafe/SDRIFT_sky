@@ -8,12 +8,14 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from airglow_orbit import AirglowOrbitModel, ORBIT_TYPES, BANDS, DEFAULT_DATA, MAP_LABELS, utc_time
+from sdrift_sky import SkyModel
+from airglow_orbit import ORBIT_TYPES, BANDS, DEFAULT_DATA, MAP_LABELS, utc_time
 
 
 class Viewer:
-    def __init__(self, root, data_dir=DEFAULT_DATA, kind='total', coords='equatorial'):
-        self.root=root; self.sky=AirglowOrbitModel(data_dir); self.result=None; self.busy=False
+    def __init__(self, root, data_dir=DEFAULT_DATA, model='total', coords='equatorial', initial=None, kind=None):
+        if kind is not None: model=kind
+        self.root=root; self.sky=SkyModel(data_dir); self.result=None; self.busy=False
         self.messages=queue.Queue(); self.vars={}
         root.title('S-DRIFT | orbit sky background'); root.geometry('1380x1000')
         controls=ttk.Frame(root,padding=10); controls.pack(fill='x')
@@ -30,13 +32,13 @@ class Viewer:
         ttk.Button(f,text='Now',command=self.now).pack(side='left',padx=4)
         for text,sec in [('-1 h',-3600),('-1 min',-60),('+1 min',60),('+1 h',3600)]:
             ttk.Button(f,text=text,command=lambda n=sec:self.shift(n)).pack(side='left',padx=3)
-        f=row(); selection=entry(f,'kind','Map',MAP_LABELS[kind],tuple(MAP_LABELS.values()),28)
+        f=row(); selection=entry(f,'kind','Map',MAP_LABELS[model],tuple(MAP_LABELS.values()),28)
         selection.bind('<<ComboboxSelected>>',lambda _:self.update())
         coordinate=entry(f,'coords','Coordinates',coords,('equatorial','galactic'),12)
         coordinate.bind('<<ComboboxSelected>>',lambda _:self.update())
         f=row(); entry(f,'orbit','Orbit','dawn-dusk',ORBIT_TYPES,16)
         entry(f,'height','H (km)','650',width=7); entry(f,'orbital_phase_deg','북쪽 기준 궤도 위상 φ (°)','0',width=7)
-        entry(f,'band','Band','VIS',BANDS,6); self.component=entry(f,'model','Model','combined',('combined','glow'),10)
+        entry(f,'band','Band','VIS',BANDS,6); self.component=entry(f,'airglow_model','Model','combined',('combined','glow'),10)
         entry(f,'nside','NSIDE','128',('16','32','64','128'),5)
         f=row()
         entry(f,'min_elv_deg','Min ELV (deg)','20.0',width=6)
@@ -61,6 +63,14 @@ class Viewer:
         self.canvas.get_tk_widget().pack(fill='both',expand=True)
         NavigationToolbar2Tk(self.canvas,root).update()
         self.canvas.mpl_connect('motion_notify_event',self.cursor)
+        initial=initial or {}
+        self.engine=initial.get('engine','auto')
+        for key,var in self.vars.items():
+            if key in initial and initial[key] is not None:var.set(str(initial[key]))
+        if 'model' in initial:self.vars['kind'].set(MAP_LABELS[initial['model']])
+        if 'contour_step' in initial:self.vars['contour'].set(f"{initial['contour_step']:.1f}")
+        self.evolve.set(initial.get('epoch') is not None)
+        self.sun.set(initial.get('sun_avoidance',True));self.moon.set(initial.get('moon_avoidance',True))
         root.after(100,self.update); root.after(100,self.poll)
 
     def now(self):
@@ -80,7 +90,7 @@ class Viewer:
         if self.busy:return
         try:
             v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','min_elv_deg','sun_separation','moon_separation']}
-            settings.update(kind={label:key for key,label in MAP_LABELS.items()}[v['kind']],orbit=v['orbit'],band=v['band'],model=v['model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None)
+            settings.update(model={label:key for key,label in MAP_LABELS.items()}[v['kind']],orbit=v['orbit'],band=v['band'],airglow_model=v['airglow_model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None,engine=self.engine)
             utc_time(v['date']); nside=int(v['nside'])
         except ValueError as exc: messagebox.showerror('Input',str(exc)); return
         self.busy=True; self.button.configure(state='disabled'); self.status.set('Calculating… (first Numba compilation may take several seconds)')
@@ -115,7 +125,7 @@ class Viewer:
     def save(self,kind):
         if self.result is None:return
         r=self.result;stamp=r['utc'].replace('-','').replace(':','').replace('T','_').rstrip('Z')
-        name=f"{r['kind']}_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_elv{r['min_elv_deg']:g}_{r['model']}_{r.get('coords','equatorial')}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
+        name=f"{r['kind']}_{r['band']}_nside{r['nside']}_{stamp}_{r['orbit']}_H{r['height']:g}_phi{r['state']['orbital_phase_deg']:.3f}_elv{r['min_elv_deg']:g}_{r['airglow_model']}_{r.get('coords','equatorial')}"+ (f"_moon{r['moon_separation']:g}" if r['moon_avoidance'] else '')+('_anti-sun' if r['sun_avoidance'] else '')
         path=filedialog.asksaveasfilename(defaultextension='.'+kind,initialfile=name+'.'+kind)
         if path:
             if kind=='fits.gz':self.sky.save_fits(r,path)
@@ -123,7 +133,7 @@ class Viewer:
             self.status.set('Saved '+path)
 
 
-def main(data_dir=DEFAULT_DATA, kind='total', coords='equatorial'):
-    root=tk.Tk();Viewer(root,data_dir,kind=kind,coords=coords);root.mainloop()
+def main(data_dir=DEFAULT_DATA, model='total', coords='equatorial', initial=None, kind=None):
+    root=tk.Tk();Viewer(root,data_dir,model=model,coords=coords,initial=initial,kind=kind);root.mainloop()
 
 if __name__=='__main__':main()

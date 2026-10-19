@@ -27,6 +27,10 @@ http://localhost:8765/ 에 접속하십시오. `file://`로 HTML을 직접 열�
 
 ## Python: RA, DEC, UTC 계산과 지도 표시
 
+함수 인자·반환값·단위·CLI·GUI의 상세 설명은
+[Python 인터페이스 안내서](README_python_interface.md)를 참조하십시오.
+`SkyModel`을 모든 모드의 공통 진입점으로 사용합니다.
+
 Python 3.10 이상에서 저장소를 내려받고 실행합니다. 원본 FITS나 GLOW/PALACE
 설치 없이 저장소의 `docs/data/`를 사용합니다. 실행 중 인터넷 연결은 필요하지 않습니다.
 
@@ -36,7 +40,8 @@ python3 sdrift_sky.py --ra 0 --dec 60 --date 2026-10-13T12:00:00Z --band VIS --m
 ```
 
 RA, DEC는 **degree**, 날짜는 **UTC**입니다. `--model`은 `zodiacal`, `dgl`,
-`zodiacal_dgl`이며 기본값은 합산 모드입니다. `--band`는 UV1/UV2/UV3/VIS,
+`zodiacal_dgl`, `airglow`, `total`이며 기본값은 세 성분 합산 `total`입니다.
+Airglow 발광 모델은 별도 `--airglow-model combined/glow`로 선택합니다. `--band`는 UV1/UV2/UV3/VIS,
 기본값은 VIS입니다. 날짜 범위는 1900–2100년입니다. 단일 좌표만 계산하려면
 `--show`를 생략합니다. 표적은 지도에 파란 X로 표시됩니다.
 
@@ -48,16 +53,17 @@ python3 sdrift_sky.py --ra 0 --dec 60 --date 2026-10-13T12:00:00Z \
   --pdf sky.pdf --png sky.png --fits sky.fits.gz --json point.json
 ```
 
-세 모드 모두 Sun/Moon 위치, 빨간/주황색 점선 separation 경계, 회피 마스크를
+모든 모드에서 궤도·고도·위상·최소 ELV와 Sun/Moon 위치, 빨간/주황색 점선 separation 경계, 회피 마스크를
 공유합니다. 기본 Sun separation은 90°, Moon separation은 60°입니다.
 `--sun-separation 100 --moon-separation 70`처럼 변경하거나
 `--no-sun-avoidance`, `--no-moon-avoidance`로 각각 끕니다.
 Contour는 기본 0.2 mag이고 `--contour-step`으로 0.1–1.0 mag를 선택합니다.
-FITS.gz는 회피 영역을 NaN으로 저장합니다. 합산 FITS에는 두 성분도 저장됩니다.
+FITS.gz는 회피 영역을 NaN으로 저장합니다. Python FITS는 모든 모드에서 같은 14개 열로 저장하며 각 성분도 포함합니다.
 
-좌표 질의는 주어진 방향에 대해 intensity를 내삽한 **회피 마스크 적용 전** 밝기와
-실제 태양·달 separation, `visible` 여부를 반환합니다. 제외된 방향도 원래 밝기를
-계산하며 지도에는 표시하지 않습니다. `display_ab_mag_arcsec2`는 이 경우 null입니다.
+좌표 질의와 지도는 동일한 관측 조건을 적용합니다. 제외 방향의 밝기는 NaN이며
+JSON에서는 null입니다. `visible`, `valid`, 실제 태양·달 separation으로 상태를 확인합니다.
+모든 모드의 `flux`/`intensity_mjy_sr` 단위는 MJy/sr이며 Airglow의 광자 radiance는
+좌표 질의의 `photon_radiance`, 지도 결과의 `airglow_photon_radiance`에 보관합니다.
 지도는 HEALPix 픽셀 중심에서 계산하므로 웹의 포인터 픽셀값과 좌표 직접 질의값은
 픽셀 크기만큼 다른 방향을 나타낼 수 있습니다. 표시는 AB mag / arcsec²입니다.
 
@@ -80,12 +86,12 @@ GCRS 데이터이며 관측지·위성 시차나 달빛 산란은 포함하지 �
 
 ## 웹 사용
 
-- 모델은 Zodiacal light / DGL / Zodiacal light + DGL / Airglow를 선택합니다.
+- 모델은 Zodiacal light / DGL / Zodiacal light + DGL / Airglow / 세 성분 합산을 선택합니다.
 - 모델과 UV1 (200–400 nm), UV2 (250–400 nm), UV3 (300–400 nm), VIS (400–700 nm)를 선택합니다.
 - Sun avoidance를 켜면 Sun separation 경계를 빨간 점선으로 표시합니다. 태양 위치는 빨간 별과 Sun 라벨로 표시하며 Sun avoidance 설정을 꺼도 유지합니다.
-- Zodiacal / DGL / Zodiacal + DGL 모두에 달의 위치와 회피각 경계를 표시합니다. Moon avoidance는 기본으로 활성화하며 최소 이각 60°, 5° 단위로 변경합니다. 태양과 달 회피를 동시에 켜면 두 조건을 모두 만족하는 방향만 표시·저장합니다. Airglow에는 날짜 기반 태양·달 마스크를 적용하지 않습니다.
+- Zodiacal / DGL / Zodiacal + DGL 모두에 달의 위치와 회피각 경계를 표시합니다. Moon avoidance는 기본으로 활성화하며 최소 이각 60°, 5° 단위로 변경합니다. 태양과 달 회피를 동시에 켜면 두 조건을 모두 만족하는 방향만 표시·저장합니다. Airglow 및 세 성분 합산 모드에도 같은 회피 조건을 적용합니다.
 - 달은 Astropy builtin으로 계산한 지구 중심 GCRS 위치를 3시간 간격으로 저장하고 내삽합니다. 1900–2100년을 지원하며 관측지/위성 시차 및 달빛 산란은 포함하지 않습니다. FITS에는 MOONMASK, MOONMIN, MOONRA, MOONDEC, MOONOBS를 기록합니다.
-- 기본 모델은 Zodiacal light + DGL이며 시작 시 현재 UTC로 계산합니다. 날짜·시간 옆 ▲/▼와 키보드 ↑/↓는
+- 기본 모델은 Zodiacal light + DGL + Airglow이며 시작 시 현재 UTC로 계산합니다. 날짜·시간 옆 ▲/▼와 키보드 ↑/↓는
   월·연도, 일·월, 초·분 등의 경계를 넘겨 변경합니다. Sun separation은 기본 90°, 5° 단위입니다.
 - DGL과 Zodiacal light + DGL은 zodiacal과 같은 날짜·시간 및 Sun avoidance 설정을
   사용합니다. DGL 분포는 RA, DEC에 고정되며 두 성분의 intensity를 더해 AB magnitude로 변환합니다.
@@ -95,8 +101,8 @@ GCRS 데이터이며 관측지·위성 시차나 달빛 산란은 포함하지 �
 - NSIDE 기본값은 128입니다. 저성능 기기에서는 32 또는 64로 선택하십시오.
   변경 시 자동 계산하며, `중지` 버튼으로 취소할 수 있습니다.
 - RA는 왼쪽으로 증가하며 모든 지도에서 contour 간격은 기본 0.2 mag이며, 0.1–1.0 mag를 0.1 mag 단위로 선택할 수 있습니다. 선택을 바꾸면 기존 지도에 바로 적용되고 PDF/PNG도 같은 간격으로 저장됩니다.
-  큰 AB magnitude의 색은 어둡습니다. 지도 위 포인터로 RA, DEC와 값을 읽습니다.
 - Contour level마다 기존 방식으로 라벨을 표시합니다. 낮은 level에서 높은 level 순으로 선굵기를 0.6–2.2 px로 증가시키며, 화면과 PDF/PNG 저장에 동일하게 적용됩니다.
+  큰 AB magnitude의 색은 어둡습니다. 지도 위 포인터로 RA, DEC와 값을 읽습니다.
 - FITS.gz: RING / Equatorial HEALPix BINTABLE. Airglow에는 EARTH_OCCULTED,
   MODEL_VALID, MIN_ALTITUDE, PHOTO_CUTOFF와 sunlit radiance도 저장합니다.
 - PDF 저장 / 인쇄: 인쇄 창에서 대상을 PDF로 선택하십시오. 지도 제목·범례와
@@ -156,7 +162,6 @@ Use of the GLOW model is governed by the Open Source Academic Research License
 Agreement contained in [glowlicense.txt](docs/data/glowlicense.txt).
 Browser routines modified 2026-10-08.
 
-
 ## 두 이상적 궤도의 airglow 지도
 
 Airglow 모드에서 dawn-dusk / noon-midnight, UTC, 고도, 위상, 최소 ELV를
@@ -168,7 +173,7 @@ FITS.gz, PDF, PNG 저장과 CLI 계산도 지원합니다.
 
 Zodiacal light + DGL + Airglow 합산 모드는 세 성분의 intensity를 더하며
 Airglow와 동일한 궤도·각도·ELV 및 태양·달 회피 조건을 사용합니다.
-웹 모델 목록에서 선택하거나 `python3 airglow_orbit.py --gui --kind total`로
+웹 모델 목록에서 선택하거나 `python3 airglow_orbit.py --gui --model total`로
 실행하십시오. [사용법](README_airglow_orbit.md#zodiacal-light--dgl--airglow-합산).
 
 웹과 Python 궤도 뷰어의 기본 모드는 **Zodiacal light + DGL + Airglow**입니다.
@@ -180,5 +185,5 @@ COORDSYS와 실제 픽셀 격자는 선택한 좌표계로 저장됩니다.
 Python 실행에는 공통 변환 모듈 `sky_coordinates.py`도 같은 폴더에 두십시오.
 
 Zodiacal, DGL, Zodi+DGL에서도 모든 궤도·위상·고도·ELV 설정을 사용할 수 있습니다.
-Python 통합 GUI/CLI는 `airglow_orbit.py --kind zodiacal`, `--kind dgl`,
-`--kind zodiacal_dgl`을 지원하며, 해당 성분의 밝기에 공통 관측 조건을 적용합니다.
+Python 통합 GUI/CLI는 `airglow_orbit.py --model zodiacal`, `--model dgl`,
+`--model zodiacal_dgl`을 지원하며, 해당 성분의 밝기에 공통 관측 조건을 적용합니다.

@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 import healpy as hp
 from sky_coordinates import COORD_SYSTEMS, from_equatorial
-from sdrift_sky import SkyModel, DEFAULT_DATA, BANDS, utc_time, coordinates, vector, boundary, ab_magnitude
+from sdrift_sky import _BackgroundModel as BackgroundModel, DEFAULT_DATA, BANDS, utc_time, coordinates, vector, boundary, ab_magnitude
 
 R = 6371.
 ORBIT_TYPES = ('dawn-dusk', 'noon-midnight')
@@ -122,7 +122,7 @@ def _numpy_kernel(height, sza, directions, q, z, chi, support, step):
     return result
 
 
-class AirglowOrbitModel(SkyModel):
+class _OrbitModel(BackgroundModel):
     def evaluate(self, directions, date, band='VIS', model='combined', height=650., orbit='dawn-dusk', orbital_phase_deg=0.,
                  epoch=None, sun_avoidance=True, sun_separation=90.,
                  moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=20., kind='total'):
@@ -146,7 +146,7 @@ class AirglowOrbitModel(SkyModel):
         if sun_avoidance: view &= v@sun <= np.cos(np.deg2rad(sun_separation))+1e-12
         if moon_avoidance: view &= v@moon <= np.cos(np.deg2rad(moon_separation))+1e-12
         if kind not in ('airglow', 'total'):
-            result = SkyModel.evaluate(self, v, date, band=band, model=kind,
+            result = BackgroundModel.evaluate(self, v, date, band=band, model=kind,
                 sun_avoidance=sun_avoidance, sun_separation=sun_separation,
                 moon_avoidance=moon_avoidance, moon_separation=moon_separation)
             radial = v@state['zenith']; b = (R+height)*radial
@@ -176,7 +176,7 @@ class AirglowOrbitModel(SkyModel):
                     moon_avoidance=moon_avoidance, moon_separation=moon_separation, step_km=step_km,
                     engine='numba' if function is globals().get('_fast_kernel') else 'numpy', kind=kind)
         if kind == 'total':
-            background = SkyModel.evaluate(self, v, date, band=band, model='zodiacal_dgl',
+            background = BackgroundModel.evaluate(self, v, date, band=band, model='zodiacal_dgl',
                 sun_avoidance=sun_avoidance, sun_separation=sun_separation,
                 moon_avoidance=moon_avoidance, moon_separation=moon_separation)
             shown = view & ~result['earth']
@@ -210,7 +210,7 @@ class AirglowOrbitModel(SkyModel):
 
     def save_fits(self, r, filename):
         if r['kind'] not in ('airglow','total'):
-            return SkyModel.save_fits(self,r,filename)
+            return BackgroundModel.save_fits(self,r,filename)
         path = Path(filename)
         if not path.name.endswith('.fits.gz'): raise ValueError('FITS output must end in .fits.gz')
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -300,57 +300,12 @@ class AirglowOrbitModel(SkyModel):
         return fig
 
 
+# Public compatibility name uses the same interface and units as SkyModel.
+from sdrift_sky import SkyModel as AirglowOrbitModel
+
 def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--gui', action='store_true', help='Interactive Python controls')
-    p.add_argument('--date', '--utc', default=datetime.now(timezone.utc).isoformat())
-    p.add_argument('--orbit', choices=ORBIT_TYPES, default='dawn-dusk')
-    p.add_argument('--height', '--H', type=float, default=650.)
-    p.add_argument('--orbital-phase-deg', '--phase', dest='orbital_phase_deg', type=float, default=0.,
-                   help='North-referenced orbital phase phi, in degrees; 0=north, 180=south')
-    p.add_argument('--epoch', help='UTC of the input north phase; omit to hold phase fixed')
-    p.add_argument('--min-elv', '--elv-min', type=float, default=20., help='Minimum Earth limb elevation, deg (default: 20)')
-    p.add_argument('--band', choices=BANDS, default='VIS')
-    p.add_argument('--kind', choices=list(MAP_LABELS), default='total', help='Total = zodiacal + DGL + airglow')
-    p.add_argument('--model', choices=['combined','glow'], default='combined')
-    p.add_argument('--coords', choices=COORD_SYSTEMS, default='equatorial')
-    p.add_argument('--nside', type=int, default=128)
-    p.add_argument('--data-dir', type=Path, default=DEFAULT_DATA)
-    p.add_argument('--engine', choices=['auto','numba','numpy'], default='auto')
-    p.add_argument('--sun-separation', type=float, default=90.)
-    p.add_argument('--moon-separation', type=float, default=60.)
-    p.add_argument('--no-sun-avoidance', action='store_true')
-    p.add_argument('--no-moon-avoidance', action='store_true')
-    p.add_argument('--contour-step', type=float, choices=[i/10 for i in range(1,11)], default=.2)
-    p.add_argument('--ra', type=float); p.add_argument('--dec', type=float)
-    p.add_argument('--show', action='store_true')
-    for kind in ['pdf','png','fits']: p.add_argument('--'+kind, type=Path)
-    a = p.parse_args()
-    if a.gui:
-        from airglow_orbit_gui import main as gui
-        gui(a.data_dir, kind=a.kind, coords=a.coords); return
-    try:
-        sky = AirglowOrbitModel(a.data_dir)
-        settings = dict(band=a.band, model=a.model, kind=a.kind, height=a.height, orbit=a.orbit, orbital_phase_deg=a.orbital_phase_deg, epoch=a.epoch,
-                        min_elv_deg=a.min_elv, sun_avoidance=not a.no_sun_avoidance,
-                        sun_separation=a.sun_separation, moon_avoidance=not a.no_moon_avoidance,
-                        moon_separation=a.moon_separation, engine=a.engine)
-        if (a.ra is None) != (a.dec is None): p.error('Provide both --ra and --dec')
-        if a.ra is not None: print(sky.point(a.ra,a.dec,a.date,**settings))
-        if a.pdf or a.png or a.fits or a.show or a.ra is None:
-            r = sky.sky_map(a.date, nside=a.nside, coords=a.coords, **settings)
-            print(f"{r['orbit']} | UTC {r['utc']} | north phase {r['state']['orbital_phase_deg']:.3f} deg | SZA {r['state']['sza']:.3f} deg | {r['engine']} | {int(r['view'].sum())} allowed pixels")
-            if a.fits: sky.save_fits(r,a.fits)
-            if a.pdf or a.png or a.show:
-                if not a.show:
-                    import matplotlib
-                    matplotlib.use('Agg')
-                fig = sky.plot(r,contour_step=a.contour_step)
-                for path in [a.pdf,a.png]:
-                    if path: path.parent.mkdir(parents=True,exist_ok=True); fig.savefig(path,dpi=160)
-                if a.show:
-                    import matplotlib.pyplot as plt
-                    plt.show()
-    except (ValueError,OSError) as exc: p.exit(2,str(exc)+'\n')
+    from sdrift_sky import main as common_main
+    common_main()
+
 
 if __name__ == '__main__': main()
