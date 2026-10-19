@@ -15,7 +15,7 @@ from airglow_orbit import ORBIT_TYPES, BANDS, DEFAULT_DATA, MAP_LABELS, utc_time
 class Viewer:
     def __init__(self, root, data_dir=DEFAULT_DATA, model='total', coords='equatorial', initial=None, kind=None):
         if kind is not None: model=kind
-        self.root=root; self.sky=SkyModel(data_dir); self.result=None; self.busy=False
+        self.root=root; self.sky=SkyModel(data_dir); self.result=None; self.busy=False; self.pending=False; self.stale=False
         self.messages=queue.Queue(); self.vars={}
         root.title('S-DRIFT | orbit sky background'); root.geometry('1380x1000')
         controls=ttk.Frame(root,padding=10); controls.pack(fill='x')
@@ -53,8 +53,9 @@ class Viewer:
         combo=entry(f,'contour','Contour (mag)','0.2',tuple(f'{i/10:.1f}' for i in range(1,11)),5)
         combo.bind('<<ComboboxSelected>>',lambda _:self.draw())
         f=row(); self.button=ttk.Button(f,text='Calculate map',command=self.update);self.button.pack(side='left')
+        self.save_buttons=[]
         for kind in ['pdf','png','fits.gz']:
-            ttk.Button(f,text='Save '+kind.upper(),command=lambda k=kind:self.save(k)).pack(side='left',padx=5)
+            b=ttk.Button(f,text='Save '+kind.upper(),command=lambda k=kind:self.save(k));b.pack(side='left',padx=5);self.save_buttons.append(b)
         ttk.Label(controls,text='Circular sun-synchronous orbits (J2; LTAN 18 h dawn-dusk, 12 h noon-midnight). φ=0 northernmost, 90 descending node (DD: dawn, NM: midnight), 180 southernmost. Zenith: 0 up, 90 horizontal, 180 down.').pack(anchor='w')
         self.model_note=ttk.Label(controls,text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon direction is seen from the satellite (parallax included).')
         self.model_note.pack(anchor='w')
@@ -71,7 +72,18 @@ class Viewer:
         if 'contour_step' in initial:self.vars['contour'].set(f"{initial['contour_step']:.1f}")
         self.evolve.set(initial.get('epoch') is not None)
         self.sun.set(initial.get('sun_avoidance',True));self.moon.set(initial.get('moon_avoidance',True))
+        # Every input that changes the calculation marks the map as out of date
+        # (the contour step only redraws).  Typed values are applied with Calculate map.
+        for key,var in self.vars.items():
+            if key!='contour':var.trace_add('write',self.changed)
+        for var in (self.evolve,self.sun,self.moon):var.trace_add('write',self.changed)
         root.after(100,self.update); root.after(100,self.poll)
+
+    def changed(self,*_):
+        self.stale=True
+        for b in self.save_buttons:b.configure(state='disabled')
+        self.status.set('Settings changed during the calculation; press Calculate map for a matching map' if self.busy
+                        else 'Settings changed; press Calculate map (the map and Save use the previous settings)')
 
     def now(self):
         self.vars['date'].set(datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z'))
@@ -87,13 +99,16 @@ class Viewer:
         selected={label:key for key,label in MAP_LABELS.items()}[self.vars['kind'].get()]
         self.component.configure(state='readonly' if selected in ('airglow','total') else 'disabled')
         self.model_note.configure(text='Mean GLOW/PALACE partial bands; no UV absorption or twilight history. Moon direction is seen from the satellite.' if selected in ('airglow','total') else 'Zodiacal light varies with date (annual harmonics); DGL is fixed in the equatorial sky. Orbit, ELV and avoidance select observable directions.')
-        if self.busy:return
+        if self.busy:
+            # Rerun with the latest controls when the current map is finished.
+            self.pending=True; self.status.set('Calculating… settings changed; the map will be recalculated'); return
+        self.pending=False
         try:
             v={k:x.get() for k,x in self.vars.items()}; settings={k:float(v[k]) for k in ['height','orbital_phase_deg','min_elv_deg','sun_separation','moon_separation']}
             settings.update(model={label:key for key,label in MAP_LABELS.items()}[v['kind']],orbit=v['orbit'],band=v['band'],airglow_model=v['airglow_model'],sun_avoidance=self.sun.get(),moon_avoidance=self.moon.get(),epoch=v['epoch'] if self.evolve.get() else None,engine=self.engine)
             utc_time(v['date']); nside=int(v['nside'])
         except ValueError as exc: messagebox.showerror('Input',str(exc)); return
-        self.busy=True; self.button.configure(state='disabled'); self.status.set('Calculating… (first Numba compilation may take several seconds)')
+        self.stale=False; self.busy=True; self.button.configure(state='disabled'); self.status.set('Calculating… (first Numba compilation may take several seconds)')
         def work():
             try:self.messages.put(('ok',self.sky.sky_map(v['date'],nside=nside,coords=v['coords'],**settings)))
             except Exception as exc:self.messages.put(('error',str(exc)))
@@ -102,8 +117,16 @@ class Viewer:
     def poll(self):
         try:
             state,value=self.messages.get_nowait();self.busy=False;self.button.configure(state='normal')
-            if state=='error':self.status.set('Calculation failed');messagebox.showerror('Airglow',value)
+            if self.pending:
+                # The result belongs to superseded settings; do not display or save it.
+                self.update()
+            elif state=='error':self.status.set('Calculation failed');messagebox.showerror('Airglow',value)
+            elif self.stale:
+                # Inputs changed during the calculation: show the map, keep Save disabled.
+                self.result=value;self.draw()
+                self.status.set('Map shows the settings before the latest change; press Calculate map')
             else:
+                for b in self.save_buttons:b.configure(state='normal')
                 self.result=value;self.draw();self.status.set(f"{value['engine']} | φ={value['state']['orbital_phase_deg']:.2f} deg | SZA={value['state']['sza']:.2f} deg | {int(value['view'].sum()):,} allowed pixels")
         except queue.Empty:pass
         except Exception as exc:messagebox.showerror('Plot',str(exc))
@@ -120,7 +143,8 @@ class Viewer:
         ra=(-np.rad2deg(event.xdata))%360; dec=np.rad2deg(event.ydata)
         i=hp.ang2pix(self.result['nside'],ra,dec,lonlat=True);r=self.result
         labels='l, b' if r.get('coords')=='galactic' else 'RA, DEC'
-        self.status.set(f"{r['mag'][i]:.3f} mag at ({labels}) = ({ra:.2f}, {dec:.2f}) | zenith {r['theta'][i]:.2f} deg | ELV {r['elv'][i]:.2f} deg"+(' | excluded' if not r['view'][i] else ' | Earth' if r['earth'][i] else ' | partial model' if not r['valid'][i] else ''))
+        self.status.set(f"{r['mag'][i]:.3f} mag at ({labels}) = ({ra:.2f}, {dec:.2f}) | zenith {r['theta'][i]:.2f} deg | ELV {r['elv'][i]:.2f} deg"+(' | excluded' if not r['view'][i] else ' | Earth' if r['earth'][i] else ' | partial model' if not r['valid'][i] else '')
+                        +(' | map uses previous settings; press Calculate map' if self.stale else '')+(' | calculating…' if self.busy else ''))
 
     def save(self,kind):
         if self.result is None:return

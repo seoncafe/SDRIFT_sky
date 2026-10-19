@@ -4,6 +4,25 @@
 export const R=6371, D=Math.PI/180, ARC=206264.80624709636;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const mod=(x,n)=>((x%n)+n)%n;
+// UTC field change; fields 0..5 = year, month (0-based), day, hour, minute, second.
+// Year/month changes keep the day inside the target month (Jan 31 + 1 month = Feb 28/29);
+// day and time fields carry into the neighboring units.
+export function setUTCField(date,index,value){
+  const d=new Date(date.getTime());
+  if(index<2){
+    const y=index===0?value:d.getUTCFullYear(),m=index===1?value:d.getUTCMonth();
+    const first=new Date(Date.UTC(2000,0,1));first.setUTCFullYear(y,m,1);
+    const last=new Date(Date.UTC(2000,0,1));last.setUTCFullYear(first.getUTCFullYear(),first.getUTCMonth()+1,0);
+    d.setUTCFullYear(first.getUTCFullYear(),first.getUTCMonth(),Math.min(d.getUTCDate(),last.getUTCDate()));
+    return d;
+  }
+  d[['setUTCDate','setUTCHours','setUTCMinutes','setUTCSeconds'][index-2]](value);
+  return d;
+}
+export function shiftUTCField(date,index,delta){
+  const get=['getUTCFullYear','getUTCMonth','getUTCDate','getUTCHours','getUTCMinutes','getUTCSeconds'][index];
+  return setUTCField(date,index,date[get]()+delta);
+}
 // Same Astropy ICRS-axis -> Galactic basis rotation as sky_coordinates.py.
 const EQ_TO_GAL=[[-0.054875657712591654,-0.8734370519556157,-0.48383507361671546],[0.49410943719272676,-0.4448297212232951,0.7469821839866675],[-0.8676661375596576,-0.19807633727300059,0.4559838136873016]];
 export function fromEquatorial(v,coords='equatorial'){return coords==='galactic'?EQ_TO_GAL.map(a=>a.reduce((s,x,j)=>s+x*v[j],0)):v;}

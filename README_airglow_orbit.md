@@ -25,8 +25,13 @@ this viewer too, and `python3 airglow_gui.py --reference` starts the earlier
 fixed-H/SZA reference viewer. The GitHub release contains only the new viewer.
 The GUI starts at the current UTC in the Zodiacal + DGL + Airglow mode. Choose
 the orbit, UTC, H, phase φ from the northernmost point, band, and minimum ELV,
-then press Calculate map. Contours range from 0.1 to 1.0 mag; the default is
-0.2 mag. Tkinter and a graphical desktop are required. Check with
+then press Calculate map. The Map and Coordinates selectors and the date buttons
+recalculate at once; if one of them changes while a map is being calculated,
+that result is discarded and the map is recalculated with the latest settings.
+Any other input marks the map as out of date: the status line says so and the
+Save buttons stay disabled until Calculate map is pressed, so a saved file
+always matches the controls.
+Contours range from 0.1 to 1.0 mag; the default is 0.2 mag. Tkinter and a graphical desktop are required. Check with
 `python3 -m tkinter`; if Tkinter is missing, install the Tcl/Tk package matching
 your Python distribution. With Homebrew Python on macOS, use the `python-tk@3.x`
 matching that Python version. Do not install `tkinter` with pip.

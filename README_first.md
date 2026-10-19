@@ -208,7 +208,7 @@ inside the default 90° Sun avoidance. The annual phase uses the true J2000
 ecliptic longitude of the Sun from Astropy. SKYSURF's internal solar-longitude
 formula is tropical (of date) while its inputs are J2000 ecliptic, so
 evaluating SKYSURF directly far from 2000 drifts by precession (about 1.4° per
-century); the template, built from year-2000 dates, avoids that drift. The
+century); the template, built from year-2000 dates, avoids that drift. Comparing the template with SKYSURF evaluated at the actual day therefore differs by up to about 0.04 mag at 1900 and 2100 (0.009 mag in 2026); against SKYSURF at the 2000 date with the same true solar longitude, the errors were measured on samples. The harmonic synthesis (UV1 and VIS, dates in 1900, 2026 and 2100, template pixels) stayed within about 0.003 mag. The full lookup in VIS, which adds rotation and NSIDE 128 bilinear interpolation, was evaluated on 2026 dates with up to 300 directions for each Sun-separation range: about 0.002 mag (largest 0.0021 mag) at 90 deg or more, the default avoidance; up to 0.004 mag at 10-90 deg; and up to about 0.06 mag at 3-10 deg, where interpolation of the steep brightness field dominates. These are sample measurements, not strict bounds for every date, band and direction. The regression tests in `tests/test_zodiacal_harmonics.py` use looser tolerances: 0.005 mag for the synthesis, and 0.005 / 0.005 / 0.01 / 0.08 mag for the lookup at >= 90 / 30-90 / 10-30 / 3-10 deg. The
 remaining approximation is the perihelion drift relative to J2000 (about 0.3°
 per century, < 0.1% in brightness).
 
@@ -718,10 +718,13 @@ emission-rate NPZ files.
 ```bash
 python3 -m unittest tests.test_dgl tests.test_airglow tests.test_airglow_components
 python3 -m tests.test_web_sky
-python3 -m unittest tests.test_airglow_orbit tests.test_sky_coordinates tests.test_python_interface tests.test_zodiacal_harmonics
+python3 -m unittest tests.test_airglow_orbit tests.test_sky_coordinates tests.test_python_interface tests.test_zodiacal_harmonics tests.test_orbit_gui_state
 python3 -m tests.test_moon_avoidance
 node tests/test_web_dgl.mjs
 node tests/test_web_moon.mjs
+node tests/test_web_dates.mjs
+node tests/test_web_worker_requests.mjs
+node tests/test_web_app_cancel.mjs
 ```
 
 The Python/JavaScript parity tests also cover the sun-synchronous orbit

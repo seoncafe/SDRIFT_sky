@@ -1,5 +1,5 @@
 // Modified 2026-10-20. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,bodyVector,topocentricMoon,sunLongitude,zodiacalTemplate,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,geometry,airglowMjy,toEquatorial,D,mod} from './sky-core.mjs?v=sso-harmonic-1';
+import {pixVector,rotation,solarAt,bodyVector,topocentricMoon,sunLongitude,zodiacalTemplate,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,geometry,airglowMjy,toEquatorial,D,mod} from './sky-core.mjs?v=sso-harmonic-3';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -8,9 +8,12 @@ async function array(meta){
  if(b.byteLength!==meta.bytes)throw Error('데이터 크기가 일치하지 않습니다.');
  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',b)),x=>x.toString(16).padStart(2,'0')).join('');
  if(hash!==meta.sha256)throw Error('데이터 SHA-256 검증 실패');
- return new Float32Array(b);})());return cache.get(meta.file);
+ return new Float32Array(b);})().catch(e=>{cache.delete(meta.file);throw e;}));return cache.get(meta.file);
 }
-self.onmessage=async({data:{request:r,manifest:m}})=>{try{
+// Requests carry an id; a newer request or {cancel:true} makes the running one stop at its next yield.
+let latest;
+self.onmessage=async({data})=>{if(data.cancel){latest=Symbol('cancelled');return;}
+ const {id,request:r,manifest:m}=data;latest=id;try{
  const np=12*r.nside*r.nside,result={flux:new Float32Array(np),mag:new Float32Array(np)};
  const air=['airglow','total'].includes(r.kind),total=r.kind==='total';
  let q,info,sun,delta,dgl,moon,state,zodi;
@@ -31,7 +34,7 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
   delta=mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI;result.delta=delta;
   for(const key of ['zodiacal','dgl','airglow','airglowPhoton']){result[key]=new Float32Array(np);result[key].fill(NaN);}
  }
- const {sampleMap}=await import('./sky-core.mjs?v=sso-harmonic-1');
+ const {sampleMap}=await import('./sky-core.mjs?v=sso-harmonic-3');
  for(let i=0;i<np;i++){
  const v=toEquatorial(pixVector(r.nside,i),r.coords);
  const mask=visibility(v,state,r,moon);result.theta[i]=mask.theta;result.elv[i]=mask.elv;result.view[i]=mask.view;
@@ -52,7 +55,8 @@ self.onmessage=async({data:{request:r,manifest:m}})=>{try{
   result.flux[i]=z+g+ag;result.mag[i]=abZodi(z+g+ag);
  }}
  }
- if(i%1024===0){self.postMessage({progress:i/np});await new Promise(resolve=>setTimeout(resolve,0));}
+ if(i%1024===0){self.postMessage({id,progress:i/np});await new Promise(resolve=>setTimeout(resolve,0));if(latest!==id)return;}
  }
- self.postMessage({result},Object.values(result).filter(x=>ArrayBuffer.isView(x)).map(x=>x.buffer));
- }catch(e){self.postMessage({error:e.message});}};
+ if(latest!==id)return;
+ self.postMessage({id,result},Object.values(result).filter(x=>ArrayBuffer.isView(x)).map(x=>x.buffer));
+ }catch(e){if(latest===id)self.postMessage({id,error:e.message});}};

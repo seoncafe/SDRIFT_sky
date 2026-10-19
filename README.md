@@ -7,7 +7,10 @@ To rebuild the data from the original sources, see the
 Users do not need Python, healpy, or NumPy. Current Chrome / Edge / Firefox /
 Safari are supported; the page uses Web Workers, CompressionStream,
 DecompressionStream, and Web Crypto. It works without an external CDN or a
-calculation server; all data are read from `docs/data/`.
+calculation server; all data are read from `docs/data/`. One Web Worker stays alive
+for the session and keeps the decompressed, SHA-256-checked arrays, so changing
+the date or phase does not reload them; a newer request or Cancel stops the
+running calculation.
 
 ## GitHub Pages
 
@@ -106,12 +109,15 @@ correlation is not an observation.
 - The default model is Zodiacal light + DGL + Airglow, starting at the current
   UTC. The ▲/▼ buttons next to each date/time field and the keyboard ↑/↓ keys
   change the value and carry over field boundaries (month to year, day to
-  month, second to minute, etc.).
+  month, second to minute, etc.). Year and month changes keep the day within
+  the target month (January 31 plus one month is February 28 or 29).
 - Every model uses the same orbit inputs: orbit (dawn-dusk / noon-midnight),
   satellite height H (default 650 km), phase φ from the northernmost point
   (default 0°), minimum ELV (default 20°), and an optional phase evolution from
-  a reference UTC. See [README_airglow_orbit.md](README_airglow_orbit.md) for
-  the orbit model and the phase convention.
+  a reference UTC. The panel shows the sun-synchronous inclination i for the
+  entered height (97.96° at 650 km, 96.65° at 300 km, 99.45° at 1000 km); it
+  updates as H changes. See [README_airglow_orbit.md](README_airglow_orbit.md)
+  for the orbit model and the phase convention.
 - With Sun avoidance on, the Sun separation boundary is a red dashed line. The
   Sun is always marked with a red star and the label Sun, even with Sun
   avoidance off. The default Sun separation is 90°, in 5° steps.

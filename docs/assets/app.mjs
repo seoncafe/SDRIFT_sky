@@ -1,26 +1,33 @@
-import {D,mod,inverseMoll,moll,vectorPixel,fitsMap,fromEquatorial} from './sky-core.mjs?v=sso-harmonic-1';
+import {D,mod,inverseMoll,moll,vectorPixel,fitsMap,fromEquatorial,setUTCField,shiftUTCField,ssoElements} from './sky-core.mjs?v=sso-harmonic-3';
 const isAir=kind=>['airglow','total'].includes(kind);
 const $=id=>document.getElementById(id),canvas=$('map'),ctx=canvas.getContext('2d');
 let manifest,worker,result,savedRequest,date=new Date(),generation=0;
 const fields=['year','month','day','hour','minute','second'],labels=['년','월','일','시','분','초'];
-const getters=['getUTCFullYear','getUTCMonth','getUTCDate','getUTCHours','getUTCMinutes','getUTCSeconds'],setters=['setUTCFullYear','setUTCMonth','setUTCDate','setUTCHours','setUTCMinutes','setUTCSeconds'];
+const getters=['getUTCFullYear','getUTCMonth','getUTCDate','getUTCHours','getUTCMinutes','getUTCSeconds'];
 function dateUI(){fields.forEach((f,i)=>{$(f).value=String(date[getters[i]]()+(i===1?1:0)).padStart(i===0?4:2,'0');});}
 fields.forEach((f,i)=>{const wrap=document.createElement('div');wrap.className='datepart';wrap.innerHTML=`<input id="${f}" type="text" inputmode="numeric" aria-label="UTC ${labels[i]}"><div class="date-arrows"><button type="button" aria-label="${labels[i]} 증가">▲</button><button type="button" aria-label="${labels[i]} 감소">▼</button></div><span>${labels[i]}</span>`;$('datetime').append(wrap);
- function change(delta){date[setters[i]](date[getters[i]]()+delta);dateUI();schedule();}
+ function change(delta){date=shiftUTCField(date,i,delta);dateUI();schedule();}
  wrap.querySelectorAll('button').forEach((b,j)=>b.onclick=()=>change(j===0?1:-1));$(f).onkeydown=e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();change(e.key==='ArrowUp'?1:-1);}};
- $(f).onchange=()=>{const v=Number($(f).value);if(Number.isInteger(v)){date[setters[i]](v-(i===1?1:0));}dateUI();schedule();};});
+ $(f).onchange=()=>{const v=Number($(f).value);if(Number.isInteger(v)){date=setUTCField(date,i,v-(i===1?1:0));}dateUI();schedule();};});
 date.setUTCMilliseconds(0);dateUI();$('now').onclick=()=>{date=new Date();date.setUTCMilliseconds(0);dateUI();schedule();};
 let timer;function schedule(){clearTimeout(timer);timer=setTimeout(calculate,250);}
 function panels(){$('moon-controls').hidden=false;$('zodi-controls').hidden=false;$('epoch').disabled=!$('evolve').checked;$('dgl-hint').hidden=!['dgl','zodiacal_dgl','total'].includes($('kind').value);$('air-controls').hidden=false;$('air-help').hidden=false;$('air-model-control').hidden=!isAir($('kind').value);$('air-component-help').hidden=!isAir($('kind').value);}
 for(const id of ['kind','band','coords','nside','anti','elongation','moon-avoid','moon-angle','height','orbit','phase','min-elv','evolve','epoch','model'])$(id).onchange=()=>{panels();schedule();};
+// Sun-synchronous inclination for the entered height (same J2 formula as the orbit model).
+function showInclination(){const H=Number($('height').value);let text='—';try{if(H>0&&H<1500)text=ssoElements(H).inclinationDeg.toFixed(2);}catch{}$('inclination').textContent=text;}
+$('height').addEventListener('input',showInclination);showInclination();
 for(const id of ['contour','contour-step'])$(id).onchange=()=>{if(result)draw();};$('calculate').onclick=calculate;
-function stop(){generation++;worker?.terminate();worker=null;$('cancel').disabled=true;$('progress').hidden=true;}
-$('cancel').onclick=()=>{stop();$('status').textContent='계산을 중지했습니다. 표시 중인 지도는 이전 결과입니다.';};
+// One long-lived worker keeps its decompressed, SHA-checked arrays; each request carries an id and
+// the worker abandons a request as soon as a newer id or a cancel message arrives.
+function idle(){$('cancel').disabled=true;$('progress').hidden=true;}
+function stop(){generation++;worker?.postMessage({cancel:true});idle();}
+function ensureWorker(){if(worker)return worker;worker=new Worker(new URL('./worker.mjs?v=sso-harmonic-3',import.meta.url),{type:'module'});worker.onerror=e=>{worker?.terminate();worker=null;generation++;idle();$('status').textContent='계산 실패: '+e.message;};return worker;}
+$('cancel').onclick=()=>{clearTimeout(timer);stop();$('status').textContent='계산을 중지했습니다. 표시 중인 지도는 이전 결과입니다.';};
 function request(){const r={kind:$('kind').value,coords:$('coords').value,band:$('band').value,nside:Number($('nside').value),utc:date.toISOString(),anti:$('anti').checked,elongation:Number($('elongation').value),moonAvoid:$('moon-avoid').checked,moonAngle:Number($('moon-angle').value),height:Number($('height').value),orbit:$('orbit').value,orbitalPhaseDeg:Number($('phase').value),minElvDeg:Number($('min-elv').value),evolve:$('evolve').checked,epoch:$('epoch').value,model:$('model').value};
  if(!Number.isFinite(r.moonAngle)||r.moonAngle<0||r.moonAngle>180)throw Error('Moon separation은 0–180°입니다.');if(r.elongation<0||r.elongation>180||!Number.isFinite(r.elongation))throw Error('Sun separation은 0–180°입니다.');if((!(r.height>0&&r.height<1500)||!Number.isFinite(r.orbitalPhaseDeg)))throw Error('H는 0–1500 km 사이이며 위상은 유한한 값이어야 합니다.');if((!Number.isFinite(r.minElvDeg)||r.minElvDeg < -90||r.minElvDeg>180))throw Error('최소 ELV는 −90–180°입니다.');if(r.evolve){if(!/(Z|[+-]\d\d:\d\d)$/.test(r.epoch))r.epoch+='Z';if(!Number.isFinite(Date.parse(r.epoch)))throw Error('위상 기준 UTC를 확인하십시오.');}return r;}
-function calculate(){clearTimeout(timer);if(!manifest)return;try{const r=request();stop();const id=generation;worker=new Worker(new URL('./worker.mjs?v=sso-harmonic-1',import.meta.url),{type:'module'});$('cancel').disabled=false;$('progress').hidden=false;$('progress').value=0;$('status').textContent='데이터 읽기 및 계산 중…';const start=performance.now();
- worker.onmessage=({data:d})=>{if(id!==generation)return;if(d.error){stop();$('status').textContent=d.error;return;}if(d.progress!==undefined){$('progress').value=d.progress;$('status').textContent=`계산 중 · ${Math.round(d.progress*100)}%`;return;}result=d.result;savedRequest=r;stop();draw();$('status').textContent=`완료 · ${result.flux.length.toLocaleString()} pixels · ${((performance.now()-start)/1000).toFixed(1)} s${result.view&&!result.view.some(Boolean)?' · 관측 영역 없음: 위상·ELV·회피 조건을 확인하십시오.':''}`;for(const k of ['fits','pdf','png'])$(k).disabled=false;};
- worker.onerror=e=>{stop();$('status').textContent='계산 실패: '+e.message;};worker.postMessage({request:r,manifest});}catch(e){$('status').textContent=e.message;}}
+function calculate(){clearTimeout(timer);if(!manifest)return;try{const r=request();stop();const id=generation;ensureWorker();$('cancel').disabled=false;$('progress').hidden=false;$('progress').value=0;$('status').textContent='데이터 읽기 및 계산 중…';const start=performance.now();
+ worker.onmessage=({data:d})=>{if(d.id!==id||id!==generation)return;if(d.error){idle();$('status').textContent=d.error;return;}if(d.progress!==undefined){$('progress').value=d.progress;$('status').textContent=`계산 중 · ${Math.round(d.progress*100)}%`;return;}result=d.result;savedRequest=r;idle();draw();$('status').textContent=`완료 · ${result.flux.length.toLocaleString()} pixels · ${((performance.now()-start)/1000).toFixed(1)} s${result.view&&!result.view.some(Boolean)?' · 관측 영역 없음: 위상·ELV·회피 조건을 확인하십시오.':''}`;for(const k of ['fits','pdf','png'])$(k).disabled=false;};
+ worker.postMessage({id,request:r,manifest});}catch(e){$('status').textContent=e.message;}}
 const area={x:90,y:52,w:1020,h:510},gridW=340,gridH=170;
 function sample(v){const i=vectorPixel(savedRequest.nside,v);return {mag:result.mag[i],i};}
 const stops=[[253,231,37],[94,201,98],[33,145,140],[59,82,139],[68,1,84]];
@@ -86,4 +93,4 @@ function filename(){const r=savedRequest,stamp=r.utc.slice(0,19).replaceAll('-',
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 $('fits').onclick=async()=>{try{const bytes=fitsMap(result,savedRequest,manifest),blob=await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).blob();download(blob,filename()+'.fits.gz');}catch(e){$('status').textContent='FITS 저장 실패: '+e.message;}};
 $('pdf').onclick=()=>{document.title=filename();window.print();};$('png').onclick=()=>canvas.toBlob(blob=>download(blob,filename()+'.png'));
-try{if(!('Worker'in window)||!('DecompressionStream'in window)||!('CompressionStream'in window))throw Error('최신 Chrome, Edge, Firefox 또는 Safari가 필요합니다.');const response=await fetch(new URL('../data/manifest.json?v=sso-harmonic-1',import.meta.url));if(!response.ok)throw Error('manifest 읽기 실패');manifest=await response.json();$('moon-avoid').checked=true;$('moon-angle').value='60';$('anti').checked=true;$('elongation').value='90';panels();calculate();}catch(e){$('status').textContent=e.message+' · HTML을 직접 열지 말고 HTTP 서버 또는 GitHub Pages에서 실행하십시오.';}
+try{if(!('Worker'in window)||!('DecompressionStream'in window)||!('CompressionStream'in window))throw Error('최신 Chrome, Edge, Firefox 또는 Safari가 필요합니다.');const response=await fetch(new URL('../data/manifest.json?v=sso-harmonic-3',import.meta.url));if(!response.ok)throw Error('manifest 읽기 실패');manifest=await response.json();$('moon-avoid').checked=true;$('moon-angle').value='60';$('anti').checked=true;$('elongation').value='90';panels();calculate();}catch(e){$('status').textContent=e.message+' · HTML을 직접 열지 말고 HTTP 서버 또는 GitHub Pages에서 실행하십시오.';}
