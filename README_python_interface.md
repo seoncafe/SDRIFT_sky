@@ -148,7 +148,7 @@ used. The GUI disables the airglow selection in these modes.
 | `height` | `650.0` | km; `0 < height < 1500` |
 | `orbital_phase_deg` | `0.0` | phase from the northernmost point, degrees; taken modulo 360° |
 | `epoch` | `None` | reference UTC of the phase; `None` keeps the phase fixed |
-| `min_elv_deg` | `20.0` | degrees; −90 to 180 |
+| `min_elv_deg` | `30.0` | degrees; −90 to 180 |
 | `sun_avoidance` | `True` | apply Sun avoidance |
 | `sun_separation` | `90.0` | degrees; 0 to 180 |
 | `moon_avoidance` | `True` | apply Moon avoidance |
@@ -271,11 +271,11 @@ ELV = 180° − asin[R / (R + H)] − θ
 ```
 
 ELV = 0° is tangent to the Earth's surface; positive values point above it.
-At 650 km, `ELV ≈ 114.85° − θ`, so the default ELV ≥ 20° means θ ≤ 94.85°.
+At 650 km, `ELV ≈ 114.85° − θ`, so the default ELV ≥ 30° means θ ≤ 84.85°.
 
 By default a direction must satisfy all three conditions:
 
-- ELV ≥ 20°
+- ELV ≥ 30°
 - separation from the Sun ≥ 90°
 - separation from the Moon ≥ 60°
 
@@ -363,7 +363,7 @@ result = sky.sky_map(
     model="total", airglow_model="combined", band="VIS",
     nside=128, coords="galactic",
     orbit="noon-midnight", height=650, orbital_phase_deg=90,
-    min_elv_deg=20, sun_separation=90, moon_separation=60,
+    min_elv_deg=30, sun_separation=90, moon_separation=60,
 )
 Path("output/python").mkdir(parents=True, exist_ok=True)
 sky.save_fits(result, "output/python/total_VIS_nside128_20261017_galactic.fits.gz")
@@ -603,7 +603,7 @@ and then the map is computed. `--ra` and `--dec` are equatorial even with
 ```sh
 python3 sdrift_sky.py --model total --airglow-model combined \
   --date 2026-10-17T00:00:00Z --band VIS --coords galactic --nside 128 \
-  --orbit noon-midnight --orbital-phase-deg 90 --height 650 --min-elv 20 \
+  --orbit noon-midnight --orbital-phase-deg 90 --height 650 --min-elv 30 \
   --contour-step 0.2 --fits output/python/total_galactic.fits.gz \
   --png output/python/total_galactic.png
 ```

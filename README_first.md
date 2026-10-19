@@ -580,7 +580,7 @@ component model with `--airglow-model`.
 ```bash
 python3 sdrift_sky.py --model total --airglow-model combined --band VIS \
   --date 2026-10-19T00:00:00Z --orbit dawn-dusk --height 650 \
-  --orbital-phase-deg 0 --min-elv 20 --sun-separation 90 --moon-separation 60 \
+  --orbital-phase-deg 0 --min-elv 30 --sun-separation 90 --moon-separation 60 \
   --nside 128 --contour-step 0.2 \
   --fits output/fits/maps/total_VIS_nside128_20261019.fits.gz \
   --pdf output/pdf/maps/total_VIS_nside128_20261019.pdf

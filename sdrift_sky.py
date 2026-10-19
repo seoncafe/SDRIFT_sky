@@ -338,7 +338,7 @@ def main():
     parser.add_argument('--height', '--H', type=float, default=650.)
     parser.add_argument('--orbital-phase-deg', '--phase', type=float, default=0.)
     parser.add_argument('--epoch')
-    parser.add_argument('--min-elv', '--elv-min', type=float, default=20.)
+    parser.add_argument('--min-elv', '--elv-min', type=float, default=30.)
     parser.add_argument('--band', choices=BANDS, default='VIS')
     parser.add_argument('--coords', choices=COORD_SYSTEMS, default='equatorial')
     parser.add_argument('--nside', type=int, default=128)

@@ -113,7 +113,7 @@ correlation is not an observation.
   the target month (January 31 plus one month is February 28 or 29).
 - Every model uses the same orbit inputs: orbit (dawn-dusk / noon-midnight),
   satellite height H (default 650 km), phase φ from the northernmost point
-  (default 0°), minimum ELV (default 20°), and an optional phase evolution from
+  (default 0°), minimum ELV (default 30°), and an optional phase evolution from
   a reference UTC. The panel shows the sun-synchronous inclination i for the
   entered height (97.96° at 650 km, 96.65° at 300 km, 99.45° at 1000 km); it
   updates as H changes. See [README_airglow_orbit.md](README_airglow_orbit.md)
@@ -155,7 +155,7 @@ correlation is not an observation.
 - File names follow the pattern
   `{model}_{band}_nside{N}_{YYYYMMDD_HHMMSS}_{orbit}_H{H}_phi{φ:.3f}_elv{ELV}[_{airglow set}]_{coords}[_moon{angle}][_anti-sun]`,
   for example
-  `zodiacal_VIS_nside128_20261008_123000_dawn-dusk_H650_phi0.000_elv20_equatorial_moon60_anti-sun.fits.gz`.
+  `zodiacal_VIS_nside128_20261008_123000_dawn-dusk_H650_phi0.000_elv30_equatorial_moon60_anti-sun.fits.gz`.
   The time is UTC; the airglow emission set (`combined` or `glow`) appears only
   for the Airglow and total models; `_moon…` and `_anti-sun` appear when Moon
   and Sun avoidance are on.

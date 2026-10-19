@@ -58,12 +58,12 @@ Moon avoidance, and Earth occultation. Downward lines of sight not blocked by
 Earth also integrate the atmosphere below the satellite.
 
 **The default observing conditions are Sun separation ≥ 90°, Moon separation
-≥ 60°, and ELV ≥ 20°.** ELV (Earth limb elevation) is the angle of the line of
+≥ 60°, and ELV ≥ 30°.** ELV (Earth limb elevation) is the angle of the line of
 sight above the limb of the spherical Earth. For height H and zenith angle θ,
 `ELV = 180° − asin(R/(R+H)) − θ` with R = 6371 km. At 650 km,
 `ELV ≈ 114.85° − θ`. Set the **minimum ELV** in the GUI/web, with
 `--min-elv 10` in the CLI, or `min_elv_deg=10` in the Python API. The default
-is 20.0°, and the allowed range is −90° to 180°. It is applied together with
+is 30.0°, and the allowed range is −90° to 180°. It is applied together with
 Sun and Moon avoidance. Even with a negative value, directions blocked by Earth
 are not computed. ELV ≥ 0° does not mean that the line of sight avoids every
 atmospheric layer of the model. The minimum ELV boundary is a green dashed line,
@@ -184,7 +184,7 @@ angle, and the separations.
 from airglow_orbit import AirglowOrbitModel
 sky = AirglowOrbitModel()
 r = sky.sky_map('2026-10-17T00:00:00Z', model='airglow', orbit='noon-midnight',
-                orbital_phase_deg=90, height=650, band='VIS', nside=128, min_elv_deg=20)
+                orbital_phase_deg=90, height=650, band='VIS', nside=128, min_elv_deg=30)
 fig = sky.plot(r, contour_step=0.2)
 fig.savefig('map.pdf')
 sky.save_fits(r, 'map.fits.gz')
@@ -305,7 +305,7 @@ use the selected system.
 On the web and in the Python orbit GUI, **every model** shares the orbit,
 satellite height, phase, phase evolution from the reference UTC, minimum ELV,
 and Sun/Moon avoidance settings. The defaults are H = 650 km, φ = 0°,
-ELV ≥ 20°, Sun separation ≥ 90°, and Moon separation ≥ 60°. The zodiacal and
+ELV ≥ 30°, Sun separation ≥ 90°, and Moon separation ≥ 60°. The zodiacal and
 DGL brightness models are unchanged by the orbit; the orbit sets the observable
 region and the zenith/ELV boundaries, and these modes neither integrate nor add
 airglow. The airglow emission set applies only to the Airglow and total modes.
@@ -313,7 +313,7 @@ airglow. The airglow emission set applies only to the Airglow and total modes.
 ```sh
 python3 airglow_orbit.py --gui --model dgl
 python3 airglow_orbit.py --model zodiacal_dgl --coords galactic \
-  --orbit noon-midnight --orbital-phase-deg 90 --height 650 --min-elv 20 \
+  --orbit noon-midnight --orbital-phase-deg 90 --height 650 --min-elv 30 \
   --date 2026-10-17T00:00:00Z --fits zodi_dgl_nside128_20261017_galactic.fits.gz
 ```
 

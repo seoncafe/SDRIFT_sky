@@ -196,7 +196,7 @@ def _numpy_kernel(height, sza, directions, q, z, chi, support, step):
 class _OrbitModel(BackgroundModel):
     def evaluate(self, directions, date, band='VIS', model='combined', height=650., orbit='dawn-dusk', orbital_phase_deg=0.,
                  epoch=None, sun_avoidance=True, sun_separation=90.,
-                 moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=20., kind='total'):
+                 moon_avoidance=True, moon_separation=60., engine='auto', step_km=2., phase=None, min_elv_deg=30., kind='total'):
         if kind not in MAP_LABELS: raise ValueError('Unknown map kind')
         if phase is not None: orbital_phase_deg = phase  # alias; NORTH_V2 convention
         if band not in BANDS or model not in ('glow', 'combined'): raise ValueError('Unknown band/model')

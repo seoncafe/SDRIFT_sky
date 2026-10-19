@@ -136,7 +136,7 @@ export function visibility(v,state,r,moon){
  const dot=(a,b)=>a.reduce((s,x,j)=>s+x*b[j],0);
  const theta=Math.acos(clamp(dot(v,state.zenith),-1,1))/D;
  const elv=state.limbZenithDeg-theta;
- return {theta,elv,view:elv>=(r.minElvDeg??20)-1e-9&&
+ return {theta,elv,view:elv>=(r.minElvDeg??30)-1e-9&&
  (!r.anti||dot(v,state.sun)<=Math.cos(r.elongation*D)+1e-12)&&
  (!r.moonAvoid||dot(v,moon)<=Math.cos(r.moonAngle*D)+1e-12)};
 }
@@ -195,7 +195,7 @@ export function fitsMap(result,request,manifest){
   const rows=[['XTENSION','BINTABLE'],['BITPIX',8],['NAXIS',2],['NAXIS1',names.length*4],['NAXIS2',n],['PCOUNT',0],['GCOUNT',1],['TFIELDS',names.length],['PIXTYPE','HEALPIX'],['ORDERING','RING'],['NSIDE',request.nside],['FIRSTPIX',0],['LASTPIX',n-1],['INDXSCHM','IMPLICIT'],['COORDSYS',request.coords==='galactic'?'G':'C'],['BAND',request.band],['WEBVER',2],['CREATOR','S-DRIFT HTML'],['DATATYPE',request.kind.toUpperCase()],['BANDMIN',manifest.bands[request.band][0]/1000],['BANDMAX',manifest.bands[request.band][1]/1000],['PHOTCNT',true]];
   names.forEach((name,i)=>{rows.push(['TTYPE'+(i+1),name],['TFORM'+(i+1),'1E']);});
   rows.push(['TUNIT1','mag/arcsec2'],['TUNIT2',air&&!total?'photons/s/cm2/sr':'MJy/sr']);
-  if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['TUNIT10','deg'],['ELVMIN',request.minElvDeg??20],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],['DATE-UTC',request.utc],['ORBIT',request.orbit],['ORBMODEL','SSO J2 CIRCULAR'],['INCL',result.state.inclinationDeg],['RAAN',result.state.raanDeg],['LTAN',result.state.ltanHours],['PHASE',result.state.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V2'],['PHASE0',request.orbitalPhaseDeg],['PHMODE',request.evolve?'EPOCH':'MANUAL'],...(request.evolve?[['EPOCH',request.epoch]]:[]),['PERIOD',result.state.period],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','SATELLITE']);
+  if(air){const m=manifest.airglow[request.model];rows.push(['SAT_H',request.height],['SAT_SZA',result.state?.sza??request.sza],['DS_KM',2],['INTVER',2],['FULLBAND',false],['ABSORPT',false],['TWILHIST',false],['NIGHTAPP',request.model==='combined'],['TABLESHA',m.source_sha256],['MODEL',m.metadata.model],['TUNIT3','photons/s/cm2/sr'],['TUNIT6','km'],['TUNIT8','deg'],['TUNIT10','deg'],['ELVMIN',request.minElvDeg??30],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],['DATE-UTC',request.utc],['ORBIT',request.orbit],['ORBMODEL','SSO J2 CIRCULAR'],['INCL',result.state.inclinationDeg],['RAAN',result.state.raanDeg],['LTAN',result.state.ltanHours],['PHASE',result.state.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V2'],['PHASE0',request.orbitalPhaseDeg],['PHMODE',request.evolve?'EPOCH':'MANUAL'],...(request.evolve?[['EPOCH',request.epoch]]:[]),['PERIOD',result.state.period],['SUNMASK',request.anti],['ELONGMIN',request.elongation],['MOONMASK',request.moonAvoid],['MOONMIN',request.moonAngle],['MOONOBS','SATELLITE']);
     for(const [v,prefix]of [[result.sun,'SUN'],[result.moon,'MOON'],[result.state.zenith,'ZEN']])if(v)rows.push([prefix+'RA',mod(Math.atan2(v[1],v[0])/D,360)],[prefix+'DEC',Math.asin(clamp(v[2],-1,1))/D]);
   }
   else{
@@ -217,7 +217,7 @@ export function fitsMap(result,request,manifest){
     const s=result.state,v=s.zenith;
     rows.push(['ORBIT',request.orbit],['ORBMODEL','SSO J2 CIRCULAR'],['SAT_H',request.height],['INCL',s.inclinationDeg],['RAAN',s.raanDeg],['LTAN',s.ltanHours],['SAT_SZA',s.sza],
       ['PHASE',s.orbitalPhaseDeg],['PHASE0',request.orbitalPhaseDeg],['PHREF','NORTH'],['PHCONV','NORTH_V2'],
-      ['PHMODE',request.evolve?'EPOCH':'MANUAL'],['PERIOD',s.period],['ELVMIN',request.minElvDeg??20],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],
+      ['PHMODE',request.evolve?'EPOCH':'MANUAL'],['PERIOD',s.period],['ELVMIN',request.minElvDeg??30],['ELVREF','SPHERICAL EARTH'],['EARTHR',R],
       ['ZENRA',mod(Math.atan2(v[1],v[0])/D,360)],['ZENDEC',Math.asin(clamp(v[2],-1,1))/D]);
     if(request.evolve)rows.push(['EPOCH',request.epoch]);
     for(const [name,unit]of [['MIN_ALTITUDE','km'],['ZENITH_ANGLE','deg'],['ELV','deg']])rows.push(['TUNIT'+(names.indexOf(name)+1),unit]);
