@@ -1,5 +1,6 @@
+import {sensitivityParameters,sensitivityCalculator} from './sensitivity.mjs?v=sensitivity-1';
 // Modified 2026-10-20. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,bodyVector,topocentricMoon,sunLongitude,zodiacalTemplate,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,geometry,airglowMjy,toEquatorial,D,mod} from './sky-core.mjs?v=sso-harmonic-4';
+import {pixVector,rotation,solarAt,bodyVector,topocentricMoon,sunLongitude,zodiacalTemplate,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,geometry,airglowMjy,toEquatorial,D,mod} from './sky-core.mjs?v=sensitivity-1';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -15,7 +16,14 @@ let latest;
 self.onmessage=async({data})=>{if(data.cancel){latest=Symbol('cancelled');return;}
  const {id,request:r,manifest:m}=data;latest=id;try{
  const np=12*r.nside*r.nside,result={flux:new Float32Array(np),mag:new Float32Array(np)};
- const air=['airglow','total'].includes(r.kind),total=r.kind==='total';
+ const sensitivity=r.kind==='sensitivity',air=['airglow','total','sensitivity'].includes(r.kind),total=r.kind==='total'||sensitivity;
+ let sensitivityCalc;
+ if(sensitivity){
+  if(!r.anti||!r.moonAvoid||r.model!=='combined')throw Error('Sensitivity requires Sun/Moon avoidance and GLOW + PALACE');
+  result.sensitivity=sensitivityParameters(r.band,r.sensitivity);
+  sensitivityCalc=sensitivityCalculator(r.band,result.sensitivity);
+  for(const key of ['background','skyCounts','sourceCounts']){result[key]=new Float32Array(np);result[key].fill(NaN);}
+ }
  let q,info,sun,delta,dgl,moon,state,zodi;
  sun=solarAt(Date.parse(r.utc)/1000,await array(m.solar),m.solar);result.sun=sun;
  state=orbitState(sun,r.height,r.orbit,r.orbitalPhaseDeg,Date.parse(r.utc)/1000,r.evolve?Date.parse(r.epoch)/1000:null);result.state=state;
@@ -34,7 +42,7 @@ self.onmessage=async({data})=>{if(data.cancel){latest=Symbol('cancelled');return
   delta=mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI;result.delta=delta;
   for(const key of ['zodiacal','dgl','airglow','airglowPhoton']){result[key]=new Float32Array(np);result[key].fill(NaN);}
  }
- const {sampleMap}=await import('./sky-core.mjs?v=sso-harmonic-4');
+ const {sampleMap}=await import('./sky-core.mjs?v=sensitivity-1');
  for(let i=0;i<np;i++){
  const v=toEquatorial(pixVector(r.nside,i),r.coords);
  const mask=visibility(v,state,r,moon);result.theta[i]=mask.theta;result.elv[i]=mask.elv;result.view[i]=mask.view;
@@ -54,6 +62,12 @@ self.onmessage=async({data})=>{if(data.cancel){latest=Symbol('cancelled');return
   result.airglowPhoton[i]=a.flux;result.airglow[i]=ag;result.zodiacal[i]=z;result.dgl[i]=g;
   result.flux[i]=z+g+ag;result.mag[i]=abZodi(z+g+ag);
  }}
+ }
+ if(sensitivity){
+  const good=result.view[i]&&!result.earth[i];
+  const b=good?result.flux[i]:NaN,a=sensitivityCalc(b);
+  result.background[i]=b;result.skyCounts[i]=a.sky;result.sourceCounts[i]=a.source;
+  result.flux[i]=a.flux;result.mag[i]=a.mag;
  }
  if(i%1024===0){self.postMessage({id,progress:i/np});await new Promise(resolve=>setTimeout(resolve,0));if(latest!==id)return;}
  }

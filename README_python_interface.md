@@ -792,3 +792,12 @@ Further reading:
 - [Noon-midnight phase figure](docs/assets/geometry_phase_nm.svg)
 - [Satellite, Earth limb, and ELV geometry figure](docs/assets/geometry_limb_elv.svg)
 - [GLOW license](docs/data/glowlicense.txt)
+
+## Sensitivity map (added 2026-10-20)
+
+`model="sensitivity"` computes the limiting surface brightness against the sum
+of the three background components. The defaults are `f_sys=0.001` (0.1%),
+`exposure_hours=10`, `bin_side=5` (5×5 pixels, software binning), `snr=3` and
+`n_reads=1`. See [README_sensitivity.md](README_sensitivity.md) for usage,
+equations, the range of validity and the FITS layout. It is available in the
+Python API, the CLI and the web page.

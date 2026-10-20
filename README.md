@@ -286,3 +286,9 @@ Zodiacal, DGL, and Zodiacal + DGL also accept all orbit, phase, height, and ELV
 settings. The Python GUI/CLI supports `airglow_orbit.py --model zodiacal`,
 `--model dgl`, and `--model zodiacal_dgl`, applying the common observing
 conditions to the brightness of the selected components.
+
+## Sensitivity map
+
+[Equations and Python/web usage](README_sensitivity.md): limiting surface
+brightness against the three background components. Defaults: f_sys = 0.1%,
+10 h effective accumulated exposure, 5×5 software binning, 3σ.

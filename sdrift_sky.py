@@ -14,7 +14,7 @@ from sky_coordinates import COORD_SYSTEMS, check_coords, from_equatorial, to_equ
 
 DEFAULT_DATA = Path(__file__).resolve().parent / 'docs' / 'data'
 BACKGROUND_MODELS = ('zodiacal', 'dgl', 'zodiacal_dgl')
-MODELS = BACKGROUND_MODELS + ('airglow', 'total')
+MODELS = BACKGROUND_MODELS + ('airglow', 'total', 'sensitivity')
 BANDS = ('UV1', 'UV2', 'UV3', 'VIS')
 ARCSEC_PER_RADIAN = 206264.80624709636
 
@@ -216,6 +216,24 @@ class SkyModel:
         model selects sky components; airglow_model selects combined/glow.
         Legacy kind= and model=combined/glow are accepted as aliases.
         """
+        if model == 'sensitivity':
+            from sensitivity import DEFAULTS, parameters, calculate_sensitivity
+            opts = {k: settings.pop(k) for k in DEFAULTS if k in settings}
+            parameters(settings.get('band', 'VIS'), **opts)
+            if airglow_model != 'combined':
+                raise ValueError('Sensitivity uses all components: airglow_model=combined')
+            for key in ('sun_avoidance', 'moon_avoidance'):
+                if not settings.get(key, True):
+                    raise ValueError('Sensitivity requires Sun and Moon avoidance')
+            if 'kind' in settings:
+                raise ValueError('Do not combine sensitivity with legacy kind')
+            r = self.evaluate(directions, date, model='total', airglow_model='combined', **settings)
+            budget = calculate_sensitivity(np.where(r['visible'], r['flux'], np.nan), r['band'], **opts)
+            r.update(budget)
+            r.update(model='sensitivity', kind='sensitivity', background_mag=r['mag'].copy(),
+                     flux=budget['limiting_mjy_sr'], mag=budget['limiting_ab_mag_arcsec2'])
+            r['intensity_mjy_sr'] = r['flux']; r['ab_mag_arcsec2'] = r['mag']
+            return r
         legacy_kind = settings.pop('kind', None)
         if model in ('combined', 'glow'):
             airglow_model, model = model, legacy_kind or 'total'
@@ -261,7 +279,7 @@ class SkyModel:
         r = self.evaluate(vector(ra, dec), date, model=model, airglow_model=airglow_model, **settings)
         sun_angle = float(np.rad2deg(np.arccos(np.clip(vector(ra, dec)@r['sun'], -1, 1))))
         moon_angle = float(np.rad2deg(np.arccos(np.clip(vector(ra, dec)@r['moon'], -1, 1))))
-        return dict(ra_deg=float(ra % 360), dec_deg=float(dec), utc=r['utc'], band=r['band'],
+        point = dict(ra_deg=float(ra % 360), dec_deg=float(dec), utc=r['utc'], band=r['band'],
             model=r['model'], airglow_model=r['airglow_model'], coords=r['coords'],
             ab_mag_arcsec2=float(r['mag'][0]), intensity_mjy_sr=float(r['flux'][0]),
             zodiacal_mjy_sr=float(r['zodiacal'][0]), dgl_mjy_sr=float(r['dgl'][0]),
@@ -276,6 +294,15 @@ class SkyModel:
             sun_avoidance=bool(r['sun_avoidance']), minimum_sun_separation_deg=float(r['sun_separation']),
             moon_avoidance=bool(r['moon_avoidance']), minimum_moon_separation_deg=float(r['moon_separation']))
 
+        if model == 'sensitivity':
+            point.update(sensitivity=r['sensitivity'],
+                limiting_ab_mag_arcsec2=float(r['mag'][0]),
+                limiting_mjy_sr=float(r['flux'][0]),
+                background_mjy_sr=float(r['background_mjy_sr'][0]),
+                sky_counts_e=float(r['sky_counts_e'][0]),
+                source_counts_e=float(r['source_counts_e'][0]))
+        return point
+
     def sky_map(self, date, nside=128, coords='equatorial', model='total', airglow_model='combined', **settings):
         check_coords(coords)
         if not hp.isnsideok(nside, nest=True): raise ValueError('NSIDE must be a positive power of two')
@@ -287,8 +314,16 @@ class SkyModel:
 
     def plot(self, result, target=None, contour_step=.2, figure=None):
         """Return a Matplotlib Figure in the result's coordinate system."""
-        fig = self._engine.plot(result['_engine_result'] | {'nside': result['nside']},
+        plot_raw = result['_engine_result'] | {'nside': result['nside']}
+        if result['model'] == 'sensitivity':
+            plot_raw = plot_raw | {'mag': result['mag'], 'valid': result['valid']}
+        fig = self._engine.plot(plot_raw,
                                 contour_step=contour_step, figure=figure)
+        if result['model'] == 'sensitivity':
+            p = result['sensitivity']
+            title = fig._suptitle.get_text().replace('Zodiacal + DGL + Airglow', 'Sensitivity')
+            fig._suptitle.set_text(title + f"\n{p['snr']:g} sigma | {p['exposure_hours']:g} h usable | f_sys={100*p['f_sys']:g}% | {p['bin_side']}x{p['bin_side']} pixels | {p['n_reads']} reads")
+            fig.axes[-1].set_xlabel('Limiting AB mag / arcsec² (larger = deeper)')
         if target is not None:
             from_equ = from_equatorial(vector(*target), result['coords'])
             lon, lat = coordinates(from_equ)
@@ -316,12 +351,25 @@ class SkyModel:
                  'ZENITH_ANGLE','VIEW_ALLOWED','ELV','VISIBLE','VALID']
         units = ['mag/arcsec2','MJy/sr','MJy/sr','MJy/sr','MJy/sr','photons/s/cm2/sr',
                  '1','1','km','deg','1','deg','1','1']
+        if result['model'] == 'sensitivity':
+            names[:2] = ['LIMIT_AB_MAG_ARCSEC2', 'LIMIT_MJY_SR']
+            keys += ['background_mjy_sr', 'sky_counts_e', 'source_counts_e']
+            names += ['BACKGROUND_MJY_SR', 'SKY_COUNTS_E', 'SOURCE_COUNTS_E']
+            units += ['MJy/sr', 'electron', 'electron']
         columns = [fits.Column(name=name, format='E', unit=unit,
                    array=np.asarray(result[key], dtype=np.float32)) for key,name,unit in zip(keys,names,units)]
         table = fits.BinTableHDU.from_columns(columns, header=metadata)
         table.header['MODEL'] = result['model']; table.header['DATATYPE'] = result['model'].upper()
         table.header['AGMODEL'] = result['airglow_model']; table.header['APIVER'] = 2
         table.header['FLUXUNIT'] = 'MJy/sr'
+        if result['model'] == 'sensitivity':
+            p = result['sensitivity']
+            for key, val in [('FSYS',p['f_sys']),('EXPHOURS',p['exposure_hours']),('BINSIDE',p['bin_side']),
+                    ('SNR',p['snr']),('NREADS',p['n_reads']),('DIAMCM',p['diameter_cm']),
+                    ('PIXSCALE',p['pixel_scale_arcsec']),('RN_E',p['read_noise_e']),
+                    ('DARK_E_S',p['dark_current_e_s']),('THRUPUT',p['throughput']),
+                    ('NOISEMOD','GAUSSIAN'),('EXPMODE','USABLE_FIXED_SKY'),('LEAKAGE',0.)]:
+                table.header[key] = val
         path.parent.mkdir(parents=True, exist_ok=True)
         fits.HDUList([fits.PrimaryHDU(),table]).writeto(path, overwrite=True)
 
@@ -330,8 +378,13 @@ def main():
     """One CLI shared by sdrift_sky.py and airglow_orbit.py."""
     parser = argparse.ArgumentParser(description='S-DRIFT: common sky brightness interface')
     parser.add_argument('--gui', action='store_true')
+    parser.add_argument('--f-sys', type=float, default=.001, help='Fraction, e.g. .001 = 0.1%%')
+    parser.add_argument('--exposure-hours', type=float, default=10.)
+    parser.add_argument('--bin-side', type=int, default=5)
+    parser.add_argument('--snr', type=float, default=3.)
+    parser.add_argument('--n-reads', type=int, default=1)
     parser.add_argument('--date', '--utc', default=datetime.now(timezone.utc).isoformat())
-    parser.add_argument('--model', default=None, help='zodiacal, dgl, zodiacal_dgl, airglow, total (default: total)')
+    parser.add_argument('--model', default=None, help='zodiacal, dgl, zodiacal_dgl, airglow, total, sensitivity (default: total)')
     parser.add_argument('--kind', help='Compatibility alias for --model')
     parser.add_argument('--airglow-model', choices=['combined','glow'], default='combined')
     parser.add_argument('--orbit', choices=['dawn-dusk','noon-midnight'], default='dawn-dusk')
@@ -364,6 +417,10 @@ def main():
             orbital_phase_deg=args.orbital_phase_deg, epoch=args.epoch, min_elv_deg=args.min_elv,
             sun_avoidance=not args.no_sun_avoidance, sun_separation=args.sun_separation,
             moon_avoidance=not args.no_moon_avoidance, moon_separation=args.moon_separation, engine=args.engine)
+        if model == 'sensitivity':
+            options.update(f_sys=args.f_sys, exposure_hours=args.exposure_hours,
+                           bin_side=args.bin_side, snr=args.snr, n_reads=args.n_reads)
+            if args.gui: raise ValueError('Sensitivity is available through the Python API/CLI and web UI')
         if args.gui:
             from airglow_orbit_gui import main as gui
             gui(args.data_dir, model=model, coords=args.coords, initial=options | {'date':args.date, 'nside':args.nside,
@@ -373,7 +430,7 @@ def main():
         if (args.ra is None) != (args.dec is None): raise ValueError('Provide both --ra and --dec')
         if args.ra is not None:
             point = sky.point(args.ra,args.dec,args.date,coords=args.coords,**options)
-            print(f"{point['ab_mag_arcsec2']:.6f} AB mag / arcsec² at (RA, DEC) = ({args.ra:g}, {args.dec:g})")
+            print(f"{'Limiting ' if model == 'sensitivity' else ''}{point['ab_mag_arcsec2']:.6f} AB mag / arcsec² at (RA, DEC) = ({args.ra:g}, {args.dec:g})")
             print(f"model={model}; intensity={point['intensity_mjy_sr']:.8g} MJy/sr; visible={point['visible']}; model_valid={point['model_valid']}")
             if args.json:
                 clean={k:None if isinstance(v,float) and not np.isfinite(v) else v for k,v in point.items()}
