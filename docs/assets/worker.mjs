@@ -1,6 +1,6 @@
-import {sensitivityParameters,sensitivityCalculator} from './sensitivity.mjs?v=sensitivity-1';
+import {sensitivityParameters,sensitivityCalculator} from './sensitivity.mjs?v=sensitivity-3';
 // Modified 2026-10-20. See sky-core.mjs and ../data/glowlicense.txt.
-import {pixVector,rotation,solarAt,bodyVector,topocentricMoon,sunLongitude,zodiacalTemplate,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,geometry,airglowMjy,toEquatorial,D,mod} from './sky-core.mjs?v=sensitivity-1';
+import {pixVector,rotation,solarAt,bodyVector,topocentricMoon,sunLongitude,zodiacalTemplate,abZodi,abAir,integrateRay,orbitState,referenceDirection,visibility,geometry,airglowMjy,toEquatorial,D,mod} from './sky-core.mjs?v=sensitivity-3';
 const cache=new Map();
 async function array(meta){
  if(!cache.has(meta.file))cache.set(meta.file,(async()=>{
@@ -42,7 +42,7 @@ self.onmessage=async({data})=>{if(data.cancel){latest=Symbol('cancelled');return
   delta=mod(sunLongitude(sun)-sunLongitude(m.solar.reference_vector)+Math.PI,2*Math.PI)-Math.PI;result.delta=delta;
   for(const key of ['zodiacal','dgl','airglow','airglowPhoton']){result[key]=new Float32Array(np);result[key].fill(NaN);}
  }
- const {sampleMap}=await import('./sky-core.mjs?v=sensitivity-1');
+ const {sampleMap}=await import('./sky-core.mjs?v=sensitivity-3');
  for(let i=0;i<np;i++){
  const v=toEquatorial(pixVector(r.nside,i),r.coords);
  const mask=visibility(v,state,r,moon);result.theta[i]=mask.theta;result.elv[i]=mask.elv;result.view[i]=mask.view;

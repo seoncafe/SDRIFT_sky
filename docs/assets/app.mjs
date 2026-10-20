@@ -1,5 +1,5 @@
-import {sensitivityParameters} from './sensitivity.mjs?v=sensitivity-1';
-import {D,mod,inverseMoll,moll,vectorPixel,fitsMap,fromEquatorial,setUTCField,shiftUTCField,ssoElements} from './sky-core.mjs?v=sensitivity-1';
+import {sensitivityParameters} from './sensitivity.mjs?v=sensitivity-3';
+import {D,mod,inverseMoll,moll,vectorPixel,fitsMap,fromEquatorial,setUTCField,shiftUTCField,ssoElements} from './sky-core.mjs?v=sensitivity-3';
 const isAir=kind=>['airglow','total','sensitivity'].includes(kind);
 const $=id=>document.getElementById(id),canvas=$('map'),ctx=canvas.getContext('2d');
 let manifest,worker,result,savedRequest,date=new Date(),generation=0;
@@ -25,7 +25,7 @@ for(const id of ['contour','contour-step'])$(id).onchange=()=>{if(result)draw();
 // the worker abandons a request as soon as a newer id or a cancel message arrives.
 function idle(){$('cancel').disabled=true;$('progress').hidden=true;}
 function stop(){generation++;worker?.postMessage({cancel:true});idle();}
-function ensureWorker(){if(worker)return worker;worker=new Worker(new URL('./worker.mjs?v=sensitivity-1',import.meta.url),{type:'module'});worker.onerror=e=>{worker?.terminate();worker=null;generation++;idle();$('status').textContent='계산 실패: '+e.message;};return worker;}
+function ensureWorker(){if(worker)return worker;worker=new Worker(new URL('./worker.mjs?v=sensitivity-3',import.meta.url),{type:'module'});worker.onerror=e=>{worker?.terminate();worker=null;generation++;idle();$('status').textContent='계산 실패: '+e.message;};return worker;}
 $('cancel').onclick=()=>{clearTimeout(timer);stop();$('status').textContent='계산을 중지했습니다. 표시 중인 지도는 이전 결과입니다.';};
 function request(){const r={kind:$('kind').value,coords:$('coords').value,band:$('band').value,nside:Number($('nside').value),utc:date.toISOString(),anti:$('anti').checked,elongation:Number($('elongation').value),moonAvoid:$('moon-avoid').checked,moonAngle:Number($('moon-angle').value),height:Number($('height').value),orbit:$('orbit').value,orbitalPhaseDeg:Number($('phase').value),minElvDeg:Number($('min-elv').value),evolve:$('evolve').checked,epoch:$('epoch').value,model:$('model').value};
  if(r.kind==='sensitivity')r.sensitivity=sensitivityParameters(r.band,{f_sys:Number($('f-sys').value)/100,exposure_hours:Number($('exposure-hours').value),bin_side:Number($('bin-side').value),snr:Number($('snr').value),n_reads:Number($('n-reads').value)});
@@ -99,4 +99,4 @@ function filename(){const r=savedRequest,stamp=r.utc.slice(0,19).replaceAll('-',
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 $('fits').onclick=async()=>{try{const bytes=fitsMap(result,savedRequest,manifest),blob=await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).blob();download(blob,filename()+'.fits.gz');}catch(e){$('status').textContent='FITS 저장 실패: '+e.message;}};
 $('pdf').onclick=()=>{document.title=filename();window.print();};$('png').onclick=()=>canvas.toBlob(blob=>download(blob,filename()+'.png'));
-try{if(!('Worker'in window)||!('DecompressionStream'in window)||!('CompressionStream'in window))throw Error('최신 Chrome, Edge, Firefox 또는 Safari가 필요합니다.');const response=await fetch(new URL('../data/manifest.json?v=sensitivity-1',import.meta.url));if(!response.ok)throw Error('manifest 읽기 실패');manifest=await response.json();$('moon-avoid').checked=true;$('moon-angle').value='60';$('anti').checked=true;$('elongation').value='90';panels();calculate();}catch(e){$('status').textContent=e.message+' · HTML을 직접 열지 말고 HTTP 서버 또는 GitHub Pages에서 실행하십시오.';}
+try{if(!('Worker'in window)||!('DecompressionStream'in window)||!('CompressionStream'in window))throw Error('최신 Chrome, Edge, Firefox 또는 Safari가 필요합니다.');const response=await fetch(new URL('../data/manifest.json?v=sensitivity-3',import.meta.url));if(!response.ok)throw Error('manifest 읽기 실패');manifest=await response.json();$('moon-avoid').checked=true;$('moon-angle').value='60';$('anti').checked=true;$('elongation').value='90';panels();calculate();}catch(e){$('status').textContent=e.message+' · HTML을 직접 열지 말고 HTTP 서버 또는 GitHub Pages에서 실행하십시오.';}

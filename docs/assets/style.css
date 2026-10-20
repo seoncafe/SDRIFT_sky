@@ -18,3 +18,5 @@
 @media(max-width:1100px){.phase-figures{grid-template-columns:1fr}.geometry-mobile-note{display:block}}
 @media screen{footer{font-size:15px}}
 #inclination{display:block;box-sizing:border-box;min-width:110px;padding:9px;border:1px solid #d8e1e9;border-radius:6px;background:#f4f7fa;font-weight:600}
+/* Buttons, checkbox and the labeled Contour select share one baseline row. */
+.actions{align-items:flex-end}.actions button,.actions select{box-sizing:border-box;height:40px}.actions .check{height:40px}
