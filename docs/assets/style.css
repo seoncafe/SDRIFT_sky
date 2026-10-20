@@ -19,4 +19,9 @@
 @media screen{footer{font-size:15px}}
 #inclination{display:block;box-sizing:border-box;min-width:110px;padding:9px;border:1px solid #d8e1e9;border-radius:6px;background:#f4f7fa;font-weight:600}
 /* Buttons, checkbox and the labeled Contour select share one baseline row. */
-.actions{align-items:flex-end}.actions button,.actions select{box-sizing:border-box;height:40px}.actions .check{height:40px}
+.actions{align-items:flex-end;row-gap:14px}
+.actions>button,.actions select{box-sizing:border-box;height:40px;min-height:40px;margin:0;line-height:normal}
+.actions>button{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.actions>label{margin:0;align-self:flex-end}
+.actions .check{box-sizing:border-box;height:40px;min-height:40px;align-items:center}
+.actions select{min-width:96px}
