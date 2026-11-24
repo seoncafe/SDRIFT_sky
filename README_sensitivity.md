@@ -10,7 +10,7 @@ magnitude. Python and the web page use the same Gaussian CCD equation.
 
 | Item | Python parameter | Default |
 |---|---|---:|
-| Fractional background systematic | `f_sys` | **0.001 = 0.1%** |
+| Fractional background systematic | `f_sys` | **0.0005 = 0.05%** |
 | Effective accumulated exposure | `exposure_hours` | **10 h** |
 | Side of the spatial bin | `bin_side` | **5 (5×5 pixels)** |
 | Detection S/N | `snr` | 3 |
@@ -61,7 +61,7 @@ Open `http://localhost:8000/docs/` and choose the **Sensitivity** entry
 as the model (the web interface is in Korean). Besides the date, band,
 coordinates, orbit, height, phase and ELV, you can change `f_sys (%)`, the
 exposure time, the bin side, the S/N and the number of readouts. The web input
-**0.1 means 0.1%**, the same as the Python input **0.001**. The aperture,
+**0.05 means 0.05%**, the same as the Python input **0.0005**. The aperture,
 pixel scale, efficiency, read noise and dark current use the defaults in the
 table above on the web page.
 
@@ -86,7 +86,7 @@ from sdrift_sky import SkyModel
 sky = SkyModel()
 settings = dict(
     model="sensitivity", band="VIS",
-    f_sys=0.001, exposure_hours=10, bin_side=5, snr=3, n_reads=1,
+    f_sys=0.0005, exposure_hours=10, bin_side=5, snr=3, n_reads=1,
     height=650, orbit="noon-midnight", orbital_phase_deg=90,
     min_elv_deg=30, sun_separation=90, moon_separation=60,
 )
@@ -133,7 +133,7 @@ from sensitivity import calculate_sensitivity
 
 r = calculate_sensitivity(
     background_mjy_sr=0.2, band="VIS",
-    f_sys=0.001, exposure_hours=10, bin_side=5,
+    f_sys=0.0005, exposure_hours=10, bin_side=5,
 )
 print(r["limiting_ab_mag_arcsec2"])
 print(r["sky_counts_e"], r["source_counts_e"])
@@ -151,7 +151,7 @@ python3 sdrift_sky.py \
   --model sensitivity --band VIS --date 2026-10-17T00:00:00Z \
   --orbit noon-midnight --phase 90 --height 650 --min-elv 30 \
   --sun-separation 90 --moon-separation 60 \
-  --f-sys 0.001 --exposure-hours 10 --bin-side 5 --snr 3 --n-reads 1 \
+  --f-sys 0.0005 --exposure-hours 10 --bin-side 5 --snr 3 --n-reads 1 \
   --nside 128 --fits sensitivity_VIS.fits.gz --png sensitivity_VIS.png
 
 python3 sdrift_sky.py \
@@ -243,7 +243,7 @@ The first two FITS columns are `LIMIT_AB_MAG_ARCSEC2` and `LIMIT_MJY_SR`;
 `BACKGROUND_MJY_SR`, `SKY_COUNTS_E` and `SOURCE_COUNTS_E` are stored
 separately. The background components and the geometry/validity flags are kept.
 The Python and web files keep their own geometry column layouts, so read
-columns by name, not by number. The header records `FSYS` (a fraction, 0.001),
+columns by name, not by number. The header records `FSYS` (a fraction, 0.0005),
 `EXPHOURS` (hours), `BINSIDE`, `SNR`, `NREADS`, `DIAMCM`, `PIXSCALE`, `RN_E`,
 `DARK_E_S`, `THRUPUT`, `NOISEMOD=GAUSSIAN`, `EXPMODE=USABLE_FIXED_SKY` and
 `LEAKAGE=0`.

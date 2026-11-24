@@ -765,7 +765,7 @@ and (in epoch mode) the orbital phase. Airglow emission rates come from a
 precomputed table for mean solar activity; this is not a forecast model with
 real-time F10.7/Ap or all atmospheric variations.
 
-The zodiacal light is the SKYSURF model (O'Brien et al. 2025, a Kelsall-type
+The zodiacal light is the SKYSURF model (O'Brien et al. 2026, a Kelsall-type
 model). Each band template stores annual Fourier harmonics (order 3) in the
 Sun's J2000 ecliptic longitude L, in a frame co-rotating with the Sun; for a
 given date the harmonics are combined at L and the map is sampled in the
@@ -796,7 +796,7 @@ Further reading:
 ## Sensitivity map (added 2026-10-20)
 
 `model="sensitivity"` computes the limiting surface brightness against the sum
-of the three background components. The defaults are `f_sys=0.001` (0.1%),
+of the three background components. The defaults are `f_sys=0.0005` (0.05%),
 `exposure_hours=10`, `bin_side=5` (5×5 pixels, software binning), `snr=3` and
 `n_reads=1`. See [README_sensitivity.md](README_sensitivity.md) for usage,
 equations, the range of validity and the FITS layout. It is available in the

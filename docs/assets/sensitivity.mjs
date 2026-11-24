@@ -1,7 +1,7 @@
 // Surface-brightness CCD limit; keep in sync with sensitivity.py.
 // Exposure is accumulated usable time at fixed geometry, not elapsed orbit time.
 // Binning is done in software after readout: read variance = N*n_reads*RN^2.
-export const sensitivityDefaults={f_sys:.001,exposure_hours:10,bin_side:5,snr:3,
+export const sensitivityDefaults={f_sys:.0005,exposure_hours:10,bin_side:5,snr:3,
  diameter_cm:30,pixel_scale_arcsec:1.96,read_noise_e:1,dark_current_e_s:.05,n_reads:1,throughput:null};
 const bands={UV1:[200,400],UV2:[250,400],UV3:[300,400],VIS:[400,700]};
 export function sensitivityParameters(band='VIS',options={}){

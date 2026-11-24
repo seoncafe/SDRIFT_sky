@@ -9,7 +9,7 @@ the folder. It explains how to build the Zodiacal/DGL reference FITS files,
 the GLOW/PALACE emission-rate tables, the optional LOS LUTs, the final maps
 and the data shared by the web and Python interfaces. Section 9.1 also explains
 how to compute sensitivity maps from the three background components, using
-the default f_sys = 0.1%, usable exposure = 10 hours and 5×5 pixel binning.
+the default f_sys = 0.05%, usable exposure = 10 hours and 5×5 pixel binning.
 
 Copy the received folder to a new working location and run everything from its
 root. The current folder already contains all original model code and DGL
@@ -281,7 +281,7 @@ node --version > rebuild_logs/node_version.txt
 
 ### 3.1 Preparing the original model
 
-The zodiacal light model is SKYSURF (O'Brien et al. 2025), a Kelsall-type
+The zodiacal light model is SKYSURF (O'Brien et al. 2026), a Kelsall-type
 model, from `Zodiacal_Light_Model_Python/` in the
 [SKYSURF repository](https://github.com/rosaliaobrien/skysurf). The local
 directory name `skysurf/` is kept for compatibility.
@@ -850,7 +850,7 @@ It applies no HST correction or Earthshine contribution.
 
 | Setting | Python / CLI | Default |
 |---|---|---|
-| Sky systematic fraction | `f_sys` / `--f-sys` | **0.001 = 0.1%** |
+| Sky systematic fraction | `f_sys` / `--f-sys` | **0.0005 = 0.05%** |
 | Usable accumulated exposure | `exposure_hours` / `--exposure-hours` | **10 h** |
 | Binning side length | `bin_side` / `--bin-side` | **5**, i.e. 5×5 detector pixels |
 | Detection S/N | `snr` / `--snr` | 3 |
@@ -884,7 +884,7 @@ mkdir -p output/fits/maps output/pdf/maps
 python3 sdrift_sky.py --model sensitivity --band VIS \
   --date 2026-10-19T00:00:00Z --orbit dawn-dusk --height 650 \
   --orbital-phase-deg 0 --min-elv 30 --sun-separation 90 --moon-separation 60 \
-  --f-sys 0.001 --exposure-hours 10 --bin-side 5 --snr 3 --n-reads 1 \
+  --f-sys 0.0005 --exposure-hours 10 --bin-side 5 --snr 3 --n-reads 1 \
   --nside 128 --contour-step 0.2 \
   --fits output/fits/maps/sensitivity_VIS_nside128_20261019.fits.gz \
   --pdf output/pdf/maps/sensitivity_VIS_nside128_20261019.pdf
@@ -899,7 +899,7 @@ from sdrift_sky import SkyModel
 sky = SkyModel()
 r = sky.sky_map(
     "2026-10-19T00:00:00Z", nside=128, model="sensitivity", band="VIS",
-    f_sys=0.001, exposure_hours=10, bin_side=5, snr=3, n_reads=1,
+    f_sys=0.0005, exposure_hours=10, bin_side=5, snr=3, n_reads=1,
     orbit="dawn-dusk", height=650, orbital_phase_deg=0, min_elv_deg=30,
     sun_separation=90, moon_separation=60,
 )
@@ -916,8 +916,8 @@ intensities and geometry flags. Headers record `FSYS`, `EXPHOURS`, `BINSIDE`,
 `SNR`, `NREADS` and the instrument settings. Read by column name, not number.
 
 For the web server above, select **Sensitivity · 한계 표면밝기** in the model
-selector. The web `f_sys (%)` field uses **0.1**, equivalent to Python
-`f_sys=0.001`. Change exposure, binning, S/N or readout count to recompute;
+selector. The web `f_sys (%)` field uses **0.05**, equivalent to Python
+`f_sys=0.0005`. Change exposure, binning, S/N or readout count to recompute;
 FITS.gz, PDF/print, PNG, Sun/Moon positions, separation boundaries and contours
 are available as for the other maps. This option is in the web interface and
 Python API/CLI, not the older desktop GUI.
@@ -1180,7 +1180,7 @@ for orbit in dawn-dusk noon-midnight; do
             --model sensitivity --airglow-model combined --date 2026-10-19T00:00:00Z \
             --orbit "$orbit" --height 650 --orbital-phase-deg 0 --band "$band" \
             --min-elv 30 --sun-separation 90 --moon-separation 60 \
-            --f-sys 0.001 --exposure-hours 10 --bin-side 5 --snr 3 --n-reads 1 \
+            --f-sys 0.0005 --exposure-hours 10 --bin-side 5 --snr 3 --n-reads 1 \
             --nside 128 --contour-step 0.2 --engine numpy \
             --fits "output/fits/maps/${stem}.fits.gz" --pdf "output/pdf/maps/${stem}.pdf"
     done

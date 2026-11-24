@@ -378,7 +378,7 @@ def main():
     """One CLI shared by sdrift_sky.py and airglow_orbit.py."""
     parser = argparse.ArgumentParser(description='S-DRIFT: common sky brightness interface')
     parser.add_argument('--gui', action='store_true')
-    parser.add_argument('--f-sys', type=float, default=.001, help='Fraction, e.g. .001 = 0.1%%')
+    parser.add_argument('--f-sys', type=float, default=.0005, help='Fraction, e.g. .0005 = 0.05%%')
     parser.add_argument('--exposure-hours', type=float, default=10.)
     parser.add_argument('--bin-side', type=int, default=5)
     parser.add_argument('--snr', type=float, default=3.)

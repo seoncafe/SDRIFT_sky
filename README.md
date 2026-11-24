@@ -186,7 +186,7 @@ PHMODE='EPOCH'. DATE-UTC keeps the trailing `Z`. Read columns by name.
 
 AB mag/arcsec² for a constant **photon-counting** throughput.
 
-The zodiacal light is the SKYSURF model (O'Brien et al. 2025, a Kelsall-type
+The zodiacal light is the SKYSURF model (O'Brien et al. 2026, a Kelsall-type
 model). Each band template stores annual Fourier harmonics in the Sun's J2000
 ecliptic longitude L, in a frame co-rotating with the Sun:
 `I = A0 + Σ_{k=1..3} [Ck cos kL + Sk sin kL]`. The browser (`zodiacalTemplate`
@@ -290,5 +290,5 @@ conditions to the brightness of the selected components.
 ## Sensitivity map
 
 [Equations and Python/web usage](README_sensitivity.md): limiting surface
-brightness against the three background components. Defaults: f_sys = 0.1%,
+brightness against the three background components. Defaults: f_sys = 0.05%,
 10 h effective accumulated exposure, 5×5 software binning, 3σ.
